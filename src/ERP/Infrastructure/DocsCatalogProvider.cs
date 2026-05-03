@@ -56,15 +56,18 @@ public sealed class DocsCatalogProvider : ICatalogProvider
 
     public CatalogueStatus LoadFromPath(string docsJsonPath)
     {
-        if (!File.Exists(docsJsonPath))
-            throw new FileNotFoundException($"Docs.json not found at '{docsJsonPath}'.", docsJsonPath);
+        var resolved = CatalogueFileResolver.Resolve(docsJsonPath);
+        if (resolved is null)
+            throw new FileNotFoundException(
+                $"Could not resolve a catalogue file from '{docsJsonPath}'. Point at the Docs directory or a specific *.json file inside it.",
+                docsJsonPath);
 
-        var newState = LoadedState.FromDocsJson(docsJsonPath);
+        var newState = LoadedState.FromDocsJson(resolved);
         Interlocked.Exchange(ref _state, newState);
-        _userConfig.SetDocsPath(docsJsonPath);
+        _userConfig.SetDocsPath(docsJsonPath); // remember what the user gave us, not the resolved file
         _logger.LogInformation(
             "Catalogue loaded from {Path}: {Items} items, {Buildings} buildings, {Recipes} recipes ({Alternates} alternates).",
-            docsJsonPath, newState.Items.Count, newState.Buildings.Count, newState.Recipes.Count,
+            resolved, newState.Items.Count, newState.Buildings.Count, newState.Recipes.Count,
             newState.Recipes.Count(r => r.IsAlternate));
         return BuildStatus(newState);
     }
@@ -96,19 +99,17 @@ public sealed class DocsCatalogProvider : ICatalogProvider
 
     private string? ResolvePath()
     {
-        var env = Environment.GetEnvironmentVariable(EnvironmentVariable);
-        if (IsReadable(env)) return env;
+        var env = CatalogueFileResolver.Resolve(Environment.GetEnvironmentVariable(EnvironmentVariable));
+        if (env is not null) return env;
 
-        var user = _userConfig.GetDocsPath();
-        if (IsReadable(user)) return user;
+        var user = CatalogueFileResolver.Resolve(_userConfig.GetDocsPath());
+        if (user is not null) return user;
 
-        if (IsReadable(_options.DocsPath)) return _options.DocsPath;
+        var configured = CatalogueFileResolver.Resolve(_options.DocsPath);
+        if (configured is not null) return configured;
 
         return SteamLibraryDetector.FindDocsJson();
     }
-
-    private static bool IsReadable(string? path) =>
-        !string.IsNullOrWhiteSpace(path) && File.Exists(path);
 
     private static CatalogueStatus BuildStatus(LoadedState state) => new(
         IsLoaded: state.IsLoaded,

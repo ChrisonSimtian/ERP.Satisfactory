@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Satisfactory.Catalog;
 
 /// <summary>
-/// Best-effort discovery of the user's Satisfactory <c>Docs.json</c> by walking the
+/// Best-effort discovery of the user's Satisfactory catalogue file by walking the
 /// Steam library configuration. Windows-only for v1 — Linux/macOS detection lands
 /// when those platforms become tier-1 supported.
 /// </summary>
@@ -22,7 +22,10 @@ public static class SteamLibraryDetector
     ];
 
     /// <summary>
-    /// Returns the first <c>Docs.json</c> found in any Steam library, or <c>null</c>.
+    /// Returns the first catalogue file found in any Steam library, or <c>null</c>.
+    /// Modern installs ship <c>CommunityResources/Docs/&lt;locale&gt;.json</c>;
+    /// legacy installs had a single <c>Docs.json</c>. <see cref="CatalogueFileResolver"/>
+    /// handles either shape.
     /// </summary>
     public static string? FindDocsJson()
     {
@@ -32,8 +35,9 @@ public static class SteamLibraryDetector
         {
             foreach (var folder in SatisfactoryFolderNames)
             {
-                var candidate = Path.Combine(library, "steamapps", "common", folder, "CommunityResources", "Docs", "Docs.json");
-                if (File.Exists(candidate)) return candidate;
+                var docsDir = Path.Combine(library, "steamapps", "common", folder, "CommunityResources", "Docs");
+                var resolved = CatalogueFileResolver.Resolve(docsDir);
+                if (resolved is not null) return resolved;
             }
         }
         return null;

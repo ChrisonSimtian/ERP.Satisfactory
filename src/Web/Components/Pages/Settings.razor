@@ -42,10 +42,12 @@ else
 }
 
 <div class="mt-4">
-    <label class="form-label">Path to <code>Docs.json</code></label>
-    <input type="text" class="form-control" @bind="pathInput" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Satisfactory\CommunityResources\Docs\Docs.json" />
+    <label class="form-label">Path to the Satisfactory <code>Docs</code> directory or a specific locale file</label>
+    <input type="text" class="form-control" @bind="pathInput" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Satisfactory\CommunityResources\Docs" />
     <div class="form-text">
-        Resolution order at startup: <code>ERP_SATISFACTORY_DOCS_PATH</code> env var → user-saved (this form) → <code>appsettings.json</code> → Steam auto-detect.
+        Either point at the <code>Docs</code> folder (we'll pick <code>en-US.json</code> automatically) or pass a specific
+        <code>&lt;locale&gt;.json</code> file. Resolution order at startup:
+        <code>ERP_SATISFACTORY_DOCS_PATH</code> env var → user-saved (this form) → <code>appsettings.json</code> → Steam auto-detect.
     </div>
     <button class="btn btn-primary mt-2" type="button" @onclick="Apply" disabled="@(string.IsNullOrWhiteSpace(pathInput) || isApplying)">
         @(isApplying ? "Applying..." : "Apply")
