@@ -39,7 +39,9 @@ app.MapGet("/weatherforecast", () =>
 .WithName("GetWeatherForecast");
 
 app.MapGet("/catalog/items", (ICatalogProvider catalog) =>
-    catalog.Items.Select(i => new ItemDto(i.Id.Value, i.Name)));
+    catalog.Items
+        .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+        .Select(i => new ItemDto(i.Id.Value, i.Name)));
 
 app.MapGet("/catalogue/status", (ICatalogProvider catalog) => catalog.GetStatus());
 
@@ -63,7 +65,7 @@ app.MapPost("/catalogue/configure", (ConfigureCatalogueRequest request, ICatalog
     }
 });
 
-app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvider catalog) =>
+app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvider catalog, ILoggerFactory loggerFactory) =>
 {
     if (!catalog.IsLoaded || catalog.Recipes.Count == 0)
     {
@@ -77,7 +79,14 @@ app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvid
         Targets:   request.Targets.Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
         Available: request.Available.Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList());
 
+    var logger = loggerFactory.CreateLogger("PlannerEndpoint");
+    var sw = System.Diagnostics.Stopwatch.StartNew();
     var plan = await bus.InvokeAsync<ProductionPlan>(query);
+    sw.Stop();
+    logger.LogInformation(
+        "Planner: {Targets} target(s) → {Steps} step(s), {Missing} missing input(s) in {Elapsed}ms",
+        query.Targets.Count, plan.Steps.Count, plan.MissingInputs.Count, sw.ElapsedMilliseconds);
+
     return Results.Ok(PlanDto.From(plan, catalog));
 });
 

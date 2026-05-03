@@ -46,6 +46,27 @@ public static class DocsJsonParser
         "FGAmmoTypeSpreadshot",
     };
 
+    /// <summary>
+    /// Native classes whose entries are extracted from the world (ores, water,
+    /// crude oil, nitrogen gas, …) — never produced via a manufacturing recipe.
+    /// Recipes whose outputs include any of these are 1.0+ Converter recipes
+    /// that transmute one resource into another at huge cost; we skip them so
+    /// the planner doesn't pick them as default producers.
+    /// </summary>
+    private static readonly HashSet<string> RawResourceNativeClasses = new(StringComparer.Ordinal)
+    {
+        "FGResourceDescriptor",
+    };
+
+    /// <summary>
+    /// Buildings whose recipes are skipped: they don't produce anything new,
+    /// they shuffle existing items (Packager packages/unpackages fluids).
+    /// </summary>
+    private static readonly HashSet<string> SkippedRecipeBuildingClassNames = new(StringComparer.Ordinal)
+    {
+        "Build_Packager_C",
+    };
+
     private static readonly HashSet<string> BuildingNativeClasses = new(StringComparer.Ordinal)
     {
         "FGBuildableManufacturer",
@@ -84,6 +105,8 @@ public static class DocsJsonParser
             throw new FormatException("Docs.json root must be an array of { NativeClass, Classes } blocks.");
 
         var items = new List<Item>();
+        var rawResources = new HashSet<ItemId>();
+        var fluidItems = new HashSet<ItemId>();
         var buildings = new List<Building>();
         var recipeBlocks = new List<JsonElement>();
         var warnings = new List<string>();
@@ -103,10 +126,15 @@ public static class DocsJsonParser
 
             if (ItemNativeClasses.Contains(typeName))
             {
+                var isRaw = RawResourceNativeClasses.Contains(typeName);
                 foreach (var entry in classesEl.EnumerateArray())
                 {
                     if (TryParseItem(entry, warnings) is { } item)
+                    {
                         items.Add(item);
+                        if (isRaw) rawResources.Add(item.Id);
+                        if (IsFluidForm(entry)) fluidItems.Add(item.Id);
+                    }
                 }
             }
             else if (BuildingNativeClasses.Contains(typeName))
@@ -132,12 +160,19 @@ public static class DocsJsonParser
         {
             foreach (var entry in classesEl.EnumerateArray())
             {
-                if (TryParseRecipe(entry, buildingByClassName, itemByClassName, warnings) is { } recipe)
+                if (TryParseRecipe(entry, buildingByClassName, itemByClassName, rawResources, fluidItems, warnings) is { } recipe)
                     recipes.Add(recipe);
             }
         }
 
-        return new ParsedCatalog(items, buildings, recipes, warnings);
+        return new ParsedCatalog(items, buildings, recipes, rawResources.ToList(), warnings);
+    }
+
+    private static bool IsFluidForm(JsonElement entry)
+    {
+        if (!entry.TryGetProperty("mForm", out var form)) return false;
+        var s = form.GetString();
+        return s == "RF_LIQUID" || s == "RF_GAS";
     }
 
     private static Item? TryParseItem(JsonElement entry, List<string> warnings)
@@ -174,6 +209,8 @@ public static class DocsJsonParser
         JsonElement entry,
         IReadOnlyDictionary<string, Building> buildingByClassName,
         IReadOnlyDictionary<string, Item> itemByClassName,
+        IReadOnlySet<ItemId> rawResources,
+        IReadOnlySet<ItemId> fluidItems,
         List<string> warnings)
     {
         if (!entry.TryGetProperty("ClassName", out var classNameEl)) return null;
@@ -189,15 +226,23 @@ public static class DocsJsonParser
             return null;
         }
 
+        if (SkippedRecipeBuildingClassNames.Contains(building.Id.Value))
+        {
+            // Packager etc. — not a producer, just a logistics shuffle.
+            return null;
+        }
+
         var displayName = entry.TryGetProperty("mDisplayName", out var dn) ? dn.GetString() : className;
         var ingredients = ParseAmounts(
             entry.TryGetProperty("mIngredients", out var ing) ? ing.GetString() : null,
             itemByClassName,
+            fluidItems,
             warnings,
             $"recipe {className} ingredients");
         var product = ParseAmounts(
             entry.TryGetProperty("mProduct", out var prod) ? prod.GetString() : null,
             itemByClassName,
+            fluidItems,
             warnings,
             $"recipe {className} product");
 
@@ -205,6 +250,14 @@ public static class DocsJsonParser
         {
             // Building recipes (mProduct references FGBuildDescriptor classes) end up empty
             // because we don't catalogue buildable descriptors as Items. Skip silently.
+            return null;
+        }
+
+        if (product.Any(p => rawResources.Contains(p.Item)))
+        {
+            // 1.0+ Converter recipes transmute resources into other resources
+            // (e.g. Limestone → Iron Ore). They're not real production paths
+            // for the planner and would explode demand if picked as defaults.
             return null;
         }
 
@@ -245,6 +298,7 @@ public static class DocsJsonParser
     private static IReadOnlyList<ItemAmount> ParseAmounts(
         string? raw,
         IReadOnlyDictionary<string, Item> items,
+        IReadOnlySet<ItemId> fluidItems,
         List<string> warnings,
         string context)
     {
@@ -261,15 +315,18 @@ public static class DocsJsonParser
             }
             // We don't reject unknown items here — they may be FGBuildDescriptor entries
             // (building recipes) that we deliberately don't catalogue. The recipe is filtered
-            // out later if its product list is empty. Keep the ItemAmount so missing items
-            // are visible in warnings if needed for debugging.
+            // out later if its product list is empty.
             if (!items.ContainsKey(className))
             {
                 // Likely a buildable descriptor (Build_*_C) appearing in mProduct. Skip silently;
                 // it'll cause the recipe to be filtered out by the empty-product check.
                 continue;
             }
-            result.Add(new ItemAmount(new ItemId(className), amount));
+            var itemId = new ItemId(className);
+            // Docs.json stores fluid quantities as m³ × 1000 (the game's internal unit).
+            // Normalise to m³/min so display + arithmetic stay consistent with solid items.
+            if (fluidItems.Contains(itemId)) amount /= 1000m;
+            result.Add(new ItemAmount(itemId, amount));
         }
         return result;
     }

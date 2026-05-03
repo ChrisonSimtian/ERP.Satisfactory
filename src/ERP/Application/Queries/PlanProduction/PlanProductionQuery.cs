@@ -8,6 +8,11 @@ public sealed record PlanProductionQuery(
 
 public static class PlanProductionHandler
 {
+    // Defensive guard against pathological recipe graphs (cycles via byproducts,
+    // unexpectedly deep chains). Real Satisfactory chains are <= 15 levels;
+    // 100 leaves plenty of headroom while still cutting off runaway recursion.
+    private const int MaxRecursionDepth = 100;
+
     public static ProductionPlan Handle(PlanProductionQuery query, ICatalogProvider catalog)
     {
         var remainingAvailable = query.Available.ToDictionary(
@@ -17,10 +22,12 @@ public static class PlanProductionHandler
         var stepsByRecipe = new Dictionary<RecipeId, RecipeAggregate>();
         var rawConsumed = new Dictionary<ItemId, decimal>();
         var missing = new Dictionary<ItemId, decimal>();
+        var visiting = new HashSet<ItemId>();
 
         foreach (var target in query.Targets)
         {
-            Expand(target.Item, target.ItemsPerMinute, catalog, remainingAvailable, stepsByRecipe, rawConsumed, missing);
+            Expand(target.Item, target.ItemsPerMinute, catalog,
+                remainingAvailable, stepsByRecipe, rawConsumed, missing, visiting, depth: 0);
         }
 
         var steps = stepsByRecipe.Values
@@ -42,9 +49,26 @@ public static class PlanProductionHandler
         Dictionary<ItemId, decimal> available,
         Dictionary<RecipeId, RecipeAggregate> steps,
         Dictionary<ItemId, decimal> rawConsumed,
-        Dictionary<ItemId, decimal> missing)
+        Dictionary<ItemId, decimal> missing,
+        HashSet<ItemId> visiting,
+        int depth)
     {
         if (demandPerMinute <= 0) return;
+
+        // Cycle detection: if this item is already being expanded higher up the
+        // call stack, treat the inner occurrence as missing — cycles must be
+        // broken by an external source, not by recursive production.
+        if (visiting.Contains(item))
+        {
+            Add(missing, item, demandPerMinute);
+            return;
+        }
+
+        if (depth > MaxRecursionDepth)
+        {
+            Add(missing, item, demandPerMinute);
+            return;
+        }
 
         // 1) Cover from on-hand availability first.
         if (available.TryGetValue(item, out var onHand) && onHand > 0)
@@ -60,7 +84,6 @@ public static class PlanProductionHandler
         var recipe = catalog.FindDefaultProducerOf(item);
         if (recipe is null)
         {
-            // No recipe and no source — record the gap.
             Add(missing, item, demandPerMinute);
             return;
         }
@@ -68,15 +91,22 @@ public static class PlanProductionHandler
         // 3) Scale the recipe and recurse into its inputs.
         var producedPerRun = recipe.Outputs.First(o => o.Item == item).Quantity;
         var producedPerMinute = producedPerRun * (decimal)(60 / recipe.Duration.TotalSeconds);
-        // With Duration = 1 minute, producedPerMinute == producedPerRun, but this stays correct otherwise.
-
         var scale = demandPerMinute / producedPerMinute;
         AggregateStep(steps, recipe, scale);
 
-        foreach (var input in recipe.Inputs)
+        visiting.Add(item);
+        try
         {
-            var inputPerMinute = input.Quantity * (decimal)(60 / recipe.Duration.TotalSeconds);
-            Expand(input.Item, inputPerMinute * scale, catalog, available, steps, rawConsumed, missing);
+            foreach (var input in recipe.Inputs)
+            {
+                var inputPerMinute = input.Quantity * (decimal)(60 / recipe.Duration.TotalSeconds);
+                Expand(input.Item, inputPerMinute * scale, catalog,
+                    available, steps, rawConsumed, missing, visiting, depth + 1);
+            }
+        }
+        finally
+        {
+            visiting.Remove(item);
         }
     }
 

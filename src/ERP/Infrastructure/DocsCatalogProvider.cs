@@ -46,7 +46,21 @@ public sealed class DocsCatalogProvider : ICatalogProvider
     public Recipe? FindDefaultProducerOf(ItemId item)
     {
         if (!_state.ProducersByItem.TryGetValue(item, out var producers)) return null;
-        return producers.FirstOrDefault(r => !r.IsAlternate) ?? producers.FirstOrDefault();
+
+        // Prefer recipes that don't *also* consume the requested item. Several
+        // game recipes are net producers via a feedback loop (e.g. Encased
+        // Uranium Cell consumes 40 Sulfuric Acid and outputs 10 — net +10/run).
+        // Picking those for backwards expansion sends demand exploding because
+        // we'd have to produce more of the item just to satisfy the recipe's
+        // own input. Filter them out unless they're the only option.
+        var noFeedback = producers
+            .Where(r => r.Inputs.All(i => i.Item != item))
+            .ToList();
+
+        return noFeedback.FirstOrDefault(r => !r.IsAlternate)
+            ?? noFeedback.FirstOrDefault()
+            ?? producers.FirstOrDefault(r => !r.IsAlternate)
+            ?? producers.FirstOrDefault();
     }
 
     public IReadOnlyList<Recipe> FindAllProducersOf(ItemId item) =>
