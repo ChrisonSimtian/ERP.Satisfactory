@@ -1,0 +1,39 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+
+# Rider / VS / VS Code
+.idea/
+.vs/
+.vscode/
+
+# Aspire
+**/.aspire/
+
+# NCrunch / Test runners
+*.ncrunchsolution
+*.ncrunchproject
+TestResults/
+coverage*.json
+coverage*.xml
+*.coverage
+*.coveragexml
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# User secrets / local settings
+*.user.props
+*.local.json
+secrets.json
+
+# Tooling
+.tools/
