@@ -29,3 +29,6 @@ ADRs are numbered sequentially starting at `0001`. The filename is
 | [0006](0006-use-wolverine-as-mediator.md) | Use Wolverine as the in-process mediator | Accepted |
 | [0007](0007-track-backlog-on-github.md) | Track backlog on GitHub (epics = milestones, stories = issues) | Accepted |
 | [0008](0008-use-playwright-for-ui-tests.md) | Use Playwright for UI tests | Accepted |
+| [0009](0009-runtime-ingestion-of-game-catalogue.md) | Runtime ingestion of game catalogue from Docs.json | Accepted |
+| [0010](0010-game-agnostic-catalogue-contract.md) | Game-agnostic catalogue contract in the Application layer | Accepted |
+| [0011](0011-catalogue-source-path-configuration.md) | Catalogue source path configuration | Accepted |
