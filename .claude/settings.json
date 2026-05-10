@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build*)",
+      "Bash(dotnet test*)",
+      "Bash(dotnet restore*)",
+      "Bash(dotnet format*)",
+      "Bash(dotnet list*)",
+      "Bash(dotnet run*)",
+      "Bash(dotnet --info)",
+      "Bash(dotnet --version)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git ls-files*)",
+      "Bash(git push*)",
+      "Bash(git reset*)",
+      "Bash(git checkout*)",
+      "Bash(git commit*)",
+      "WebFetch(domain:satisfactory.wiki.gg)",
+      "WebFetch(domain:satisfactorygame.com)"
+    ]
+  }
+}
