@@ -25,53 +25,46 @@ foundations.
 
 ## Open
 
-### 1. Iron smelter count gap (dormant, ore-blocked)
-- **Severity:** `DEGRADED` (was `RISK` — gap widened by 3rd screw module's ingot demand)
-- **Source:** 2026-05-11 stocktake (post-centralization + 3rd screw module)
-- **Detail:** Iron production line full target = **`450 Iron Ingot/min`** (was
-  `420` — `+30` from the 3rd screw module's internal rod) → needs **`15`** smelters.
-  Current iron smelter inventory: **`8` total** (all at the mega factory base, in
-  `2` modules of `4`). **Short `7` smelters.** Dormant until ore is solved — at
-  the current `120 ore/min` supply, only `4` smelters are even active.
-- **Fix:** Once ore is solved (TODO #3), add `7` more Iron Smelters (`~2` more
-  modules) and verify ingot flow reaches all production-line modules. Until ore
-  is solved, this TODO is effectively dormant.
+### 3. Iron ore extraction shortfall — UPSTREAM BLOCKER (improved, still blocker)
+- **Severity:** `BLOCKER` (smelter count now resolved — this is the sole upstream blocker).
+- **Source:** 2026-05-11 stocktake (save-file sync — Site C added)
+- **Detail:** Production line demands **`450 Iron Ore/min`** (`15`-smelter full
+  target). Current supply: **`180 Iron Ore/min`** from `6 × MK1` miners on Impure
+  nodes across `3` sites, all belted directly into the basement smelting bay:
+  - Site A (loose): `2 × MK1 Impure = 60 ore/min`
+  - Site B (former minehead): `2 × MK1 Impure = 60 ore/min`
+  - Site C (new): `2 × MK1 Impure = 60 ore/min` (purity assumed — confirm next session)
 
-### 3. Iron ore extraction shortfall — UPSTREAM BLOCKER (WORSE)
-- **Severity:** `BLOCKER` (this remains the real upstream blocker — TODO #1
-  is parked behind this).
-- **Source:** 2026-05-11 stocktake (revised after 3rd screw module added)
-- **Detail:** Production line now demands **`450 Iron Ore/min`** (`15`-smelter
-  full target — `+30` from the 3rd screw module's internal rod). Current supply:
-  `120 Iron Ore/min` from `4 × MK1` miners on Impure nodes across 2 sites, both
-  now belted directly into the basement smelting bay:
-  - Site A (loose): `60 ore/min` → merged at base on MK2 belt.
-  - Site B (former minehead): `60 ore/min` → merged at base on MK2 belt.
-
-  **Shortfall: `330/min` (~`73%`).** Combined ingot output: `120/min`.
-  Production line effective throughput: `~27%`. The 3rd screw module widened
-  the gap by `30/min` of ingot demand (`+30 ore/min`).
+  **Shortfall: `270/min` (~`60%`).** Combined ingot output: `180/min`.
+  Production line effective throughput: `~40%`. Site C narrowed the gap by
+  `60 ore/min` vs the previous snapshot.
 - **Fix:** Pick one or combine —
-  - **Survey for higher-purity iron nodes.** A pair of MK1 miners on Normal
-    nodes adds `120/min`; on Pure adds `240/min`. Cheapest immediate fix.
-  - **Buy Tier 4 milestone → MK2 miners.** Phase 1 already unlocked Tier 4.
-    MK2 on the existing `4` Impure nodes doubles supply to `240 ore/min`
-    (still short `210/min`, but unlocks the path). Milestone cost requires
-    Encased Industrial Beam — gated on starting Steel.
-  - **Scale the production line back** to match `120 Iron Ore/min` until ore is
-    solved — `4` smelters' worth of everything downstream.
+  - **Confirm Site C purity.** If any of the two new nodes are Normal, supply
+    jumps `+30/min` per node — cheap freebie.
+  - **Survey for higher-purity iron nodes** elsewhere. A pair of MK1 miners on
+    Normal nodes adds `120/min`; on Pure adds `240/min`.
+  - **Buy Tier 4 milestone → MK2 miners.** MK2 on the existing `6` Impure nodes
+    doubles supply to `360 ore/min` (still short `90/min`, but a big jump).
+    Gated on Encased Industrial Beam (Steel).
+  - **Scale the production line back** to match `180 Iron Ore/min` until ore is
+    solved — `6` smelters' worth of everything downstream.
 
 ---
 
-### 5. Belt breach pending MK2 miner upgrade
-- **Severity:** `RISK`
-- **Source:** 2026-05-11 centralized smelting plan
-- **Detail:** Post-MK2 miners (Tier 4 milestone), the merged Iron belt at base
-  carries `240/min` and the merged Copper belt carries `240/min`. Both exceed
-  MK2 belt cap (`120/min`).
-- **Fix:** Unlock **MK3 belts** (Tier 4 logistics milestone — already unlocked
-  by Phase 1) *before* the MK2 miner swap, or run `2 × MK2` belts per ore into
-  the basement.
+### 5. Iron belt breach at base — ACTIVE NOW (was: pending MK2 upgrade)
+- **Severity:** `BLOCKER` (escalated from `RISK` — Site C pushed merged iron belt past MK2 cap today)
+- **Source:** 2026-05-11 stocktake (save-file sync — Site C added)
+- **Detail:** Merged Iron belt at base now carries `180 ore/min` (Site A `60` +
+  Site B `60` + Site C `60`). MK2 belt cap is `120/min`. **Belt overflows by
+  `60/min` today** — Site C's contribution is being lost at the merge or
+  backing up upstream. Copper merged belt unchanged (`120/min`, at cap).
+  Post-MK2-miner-upgrade projection is worse: `360 iron/min` and `240 copper/min`.
+- **Fix:** Pick one immediately —
+  - **Split the iron merge into `2 × MK2` belts** into the smelter bay (one
+    carrying `120/min`, the other `60/min`) — zero-milestone fix, works today.
+  - **Unlock MK3 belts** (Tier 4 logistics — already unlocked by Phase 1) and
+    swap the merged belt to a single MK3 (`270/min` cap) — clean and
+    future-proof through the next miner upgrade as well.
 
 ### 6. Coal headroom insufficient for steel module
 - **Severity:** `RISK` (becomes `BLOCKER` the moment steel is built)
@@ -101,3 +94,12 @@ foundations.
   miners (`1` Normal + `2` Impure) belted into one MK2 line (`120/min`,
   saturated) feeding the module at `100%` throughput. Output: `120 Copper
   Ingot/min`. No idle smelters, no wasted power.
+
+### 1. Iron smelter count gap — resolved 2026-05-11 (save-file sync)
+- **Resolution:** Save-file confirms `16` Iron Smelters built at the mega factory
+  base (`4 × 4`), not `8`. At the `450 ingot/min` production-line target only
+  `15` are required — **`+1` smelter surplus, sized for headroom.** Smelter
+  count is no longer a constraint; iron ore (TODO #3) remains the upstream
+  blocker.
+- **Note:** At today's `180 ore/min` supply, only `~6` of the `16` smelters are
+  actively fed (`~37.5%` bay throughput); the rest sit idle until ore scales.

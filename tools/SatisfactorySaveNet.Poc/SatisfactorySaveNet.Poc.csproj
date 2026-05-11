@@ -8,7 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SatisfactorySaveNet" Version="3.2.3" />
+    <!-- Reference the patched fork in vendor/ instead of the NuGet 3.2.3 release. -->
+    <ProjectReference Include="..\..\vendor\SatisfactorySaveNet\SatisfactorySaveNet\SatisfactorySaveNet.csproj" />
+    <ProjectReference Include="..\..\vendor\SatisfactorySaveNet\SatisfactorySaveNet.Abstracts\SatisfactorySaveNet.Abstracts.csproj" />
   </ItemGroup>
 
 </Project>

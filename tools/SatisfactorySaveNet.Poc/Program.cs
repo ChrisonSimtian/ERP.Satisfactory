@@ -31,8 +31,8 @@ try
 catch (Exception ex)
 {
     Console.Error.WriteLine();
-    Console.Error.WriteLine($"!!! Full deserialize FAILED after {stopwatch.ElapsedMilliseconds} ms: {ex.GetType().Name}: {ex.Message}");
-    Console.Error.WriteLine($"    at {ex.StackTrace?.Split(Environment.NewLine).FirstOrDefault()?.Trim()}");
+    Console.Error.WriteLine($"!!! Full deserialize FAILED after {stopwatch.ElapsedMilliseconds} ms: {ex.GetType().FullName}: {ex.Message}");
+    Console.Error.WriteLine(ex.StackTrace);
     return 3;
 }
 stopwatch.Stop();
