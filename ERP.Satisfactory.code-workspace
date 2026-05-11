@@ -8,5 +8,7 @@
 			"path": "vendor/SatisfactorySaveNet"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"powershell.cwd": "ERP.Satisfactory"
+	}
 }
