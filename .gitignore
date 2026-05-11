@@ -37,3 +37,6 @@ secrets.json
 
 # Tooling
 .tools/
+
+# Node
+node_modules/

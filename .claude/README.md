@@ -7,8 +7,10 @@ Project-specific guidance and tooling for Claude Code in this repo.
 - [`architecture.md`](architecture.md) — repository layout, namespace convention,
   onion dependency rules. Detailed reference; the top-level `CLAUDE.md` only points here.
 - [`agents/`](agents/) — custom subagents available via the Agent tool.
-  - [`ada.md`](agents/ada.md) — **ADA**, the in-game assistant. Game knowledge only
-    (recipes, ratios, milestone unlocks, building specs, layout tips). Not for code work.
+  - [`ada.md`](agents/ada.md) — **ADA**, the in-game assistant. Game knowledge
+    (recipes, ratios, milestone unlocks, building specs, layout tips) plus
+    live save-game sync into `.satisfactory/stocktake.md` via the parser at
+    [`tools/etothepii-test/`](../tools/etothepii-test/README.md). Not for code work.
 
 ## Adding things later
 

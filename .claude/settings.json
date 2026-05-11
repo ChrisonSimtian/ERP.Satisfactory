@@ -10,6 +10,8 @@
       "Bash(dotnet run*)",
       "Bash(dotnet --info)",
       "Bash(dotnet --version)",
+      "Bash(node tools/etothepii-test/*)",
+      "Bash(npm install*)",
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
