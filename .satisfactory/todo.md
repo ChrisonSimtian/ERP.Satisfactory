@@ -25,46 +25,48 @@ foundations.
 
 ## Open
 
-### 3. Iron ore extraction shortfall — UPSTREAM BLOCKER (improved, still blocker)
-- **Severity:** `BLOCKER` (smelter count now resolved — this is the sole upstream blocker).
-- **Source:** 2026-05-11 stocktake (save-file sync — Site C added)
+### 3. Iron ore extraction shortfall — UPSTREAM BLOCKER (much improved, still blocker)
+- **Severity:** `BLOCKER` (closing fast — was `270/min` short, now `90/min`).
+- **Source:** 2026-05-11 stocktake (save-file sync — Site D added, +6 MK1 miners)
 - **Detail:** Production line demands **`450 Iron Ore/min`** (`15`-smelter full
-  target). Current supply: **`180 Iron Ore/min`** from `6 × MK1` miners on Impure
-  nodes across `3` sites, all belted directly into the basement smelting bay:
+  target). Current supply: **`360 Iron Ore/min`** from `12 × MK1` miners on
+  Impure nodes (assumed) across `4` sites:
   - Site A (loose): `2 × MK1 Impure = 60 ore/min`
   - Site B (former minehead): `2 × MK1 Impure = 60 ore/min`
-  - Site C (new): `2 × MK1 Impure = 60 ore/min` (purity assumed — confirm next session)
+  - Site C: `2 × MK1 Impure = 60 ore/min`
+  - Site D (new cluster Z≈-4400/-4500): `6 × MK1 Impure assumed = 180 ore/min`
 
-  **Shortfall: `270/min` (~`60%`).** Combined ingot output: `180/min`.
-  Production line effective throughput: `~40%`. Site C narrowed the gap by
-  `60 ore/min` vs the previous snapshot.
+  **Shortfall: `90/min` (~`20%`).** Combined ingot output: `360/min`.
+  Production line effective throughput: `~80%`. Site D narrowed the gap by
+  `180 ore/min`. Smelter bay now at `75%` throughput (4 idle of 16).
 - **Fix:** Pick one or combine —
-  - **Confirm Site C purity.** If any of the two new nodes are Normal, supply
-    jumps `+30/min` per node — cheap freebie.
-  - **Survey for higher-purity iron nodes** elsewhere. A pair of MK1 miners on
-    Normal nodes adds `120/min`; on Pure adds `240/min`.
-  - **Buy Tier 4 milestone → MK2 miners.** MK2 on the existing `6` Impure nodes
-    doubles supply to `360 ore/min` (still short `90/min`, but a big jump).
-    Gated on Encased Industrial Beam (Steel).
-  - **Scale the production line back** to match `180 Iron Ore/min` until ore is
-    solved — `6` smelters' worth of everything downstream.
+  - **Confirm Site D purities.** Each Normal node closes `+30/min`; three Normals
+    zero the shortfall outright. Cheapest possible solve.
+  - **Add `3` more MK1 miners** on any Impure iron node to close `+90/min`. Or
+    `2 × MK1` if even one ends up Normal.
+  - **Buy Tier 4 milestone → MK2 miners.** MK2 on existing `12` Impure nodes
+    doubles supply to `720 ore/min` — overshoots target by `+270/min`, opens
+    headroom for steel and beyond. Gated on Encased Industrial Beam.
+  - **Scale the production line back** to match `360 Iron Ore/min` (~`12`
+    smelters' worth of downstream) as an interim.
 
 ---
 
-### 5. Iron belt breach at base — ACTIVE NOW (was: pending MK2 upgrade)
-- **Severity:** `BLOCKER` (escalated from `RISK` — Site C pushed merged iron belt past MK2 cap today)
-- **Source:** 2026-05-11 stocktake (save-file sync — Site C added)
-- **Detail:** Merged Iron belt at base now carries `180 ore/min` (Site A `60` +
-  Site B `60` + Site C `60`). MK2 belt cap is `120/min`. **Belt overflows by
-  `60/min` today** — Site C's contribution is being lost at the merge or
-  backing up upstream. Copper merged belt unchanged (`120/min`, at cap).
-  Post-MK2-miner-upgrade projection is worse: `360 iron/min` and `240 copper/min`.
-- **Fix:** Pick one immediately —
-  - **Split the iron merge into `2 × MK2` belts** into the smelter bay (one
-    carrying `120/min`, the other `60/min`) — zero-milestone fix, works today.
-  - **Unlock MK3 belts** (Tier 4 logistics — already unlocked by Phase 1) and
-    swap the merged belt to a single MK3 (`270/min` cap) — clean and
-    future-proof through the next miner upgrade as well.
+### 5. Iron belt breach at base — PENDING CONFIRMATION (was: ACTIVE NOW)
+- **Severity:** `BLOCKER` until topology confirmed (could resolve to nothing).
+- **Source:** 2026-05-11 stocktake (save-file sync — Site D added)
+- **Detail:** Combined raw iron ore arriving at base is now `360/min` (Site A
+  `60` + B `60` + C `60` + D `180`). Single MK2 belt cap `120/min`. **3× over
+  cap** on a single lane. However, save shows `+27 MK2` belts and `+4 MK2`
+  lifts laid since last snapshot — strong signal Chris ran multi-lane MK2
+  from Site D. Topology not yet confirmed.
+- **Fix (already in flight?):** Confirm with Chris which is built —
+  - `3 × MK2` belts merged at base (`360/min` cap, zero margin) — works, no
+    milestone needed.
+  - `2 × MK3` belts (`540/min` cap) — clean, future-proofs MK2-miner upgrade.
+  - If still single MK2: split immediately, `120/min` is being lost at the merge.
+  Post-MK2-miner-upgrade projection: `720/min` iron — would need `≥ 3 × MK3`
+  or `2 × MK4` lanes.
 
 ### 6. Coal headroom insufficient for steel module
 - **Severity:** `RISK` (becomes `BLOCKER` the moment steel is built)
