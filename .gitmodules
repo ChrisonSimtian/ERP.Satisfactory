@@ -1,0 +1,5 @@
+[submodule "vendor/SatisfactorySaveNet"]
+	path = vendor/SatisfactorySaveNet
+	url = https://github.com/ChrisonSimtian/SatisfactorySaveNet.git
+	ignore = all
+	update = none
