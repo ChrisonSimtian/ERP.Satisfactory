@@ -29,20 +29,35 @@ public static class SaveFileResolver
     /// directory containing the user's most-recently-played save folder, or
     /// <c>null</c> if the standard FactoryGame Saved/SaveGames path doesn't exist.
     /// </summary>
-    public static string? AutoDetectLatestSave()
+    public static string? AutoDetectLatestSave() =>
+        EnumerateDetectedSaves().FirstOrDefault()?.FullName;
+
+    /// <summary>
+    /// Enumerates every <c>.sav</c> file under the FactoryGame SaveGames root,
+    /// across all per-SteamID subfolders. Sorted most-recently-written first.
+    /// Returns an empty sequence if the root doesn't exist.
+    /// </summary>
+    /// <param name="saveGamesRoot">
+    /// Override the SaveGames directory (used by tests). When <c>null</c>,
+    /// defaults to <c>%LocalAppData%\FactoryGame\Saved\SaveGames\</c>.
+    /// </param>
+    public static IReadOnlyList<FileInfo> EnumerateDetectedSaves(string? saveGamesRoot = null)
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localAppData)) return null;
+        var root = saveGamesRoot ?? DefaultSaveGamesRoot();
+        if (root is null || !Directory.Exists(root)) return [];
 
-        var saveGames = Path.Combine(localAppData, "FactoryGame", "Saved", "SaveGames");
-        if (!Directory.Exists(saveGames)) return null;
-
-        // Each SteamID is a subdirectory; pick the one with the most-recent .sav.
-        var latest = new DirectoryInfo(saveGames)
+        return new DirectoryInfo(root)
             .EnumerateDirectories()
             .SelectMany(d => d.EnumerateFiles("*.sav", SearchOption.TopDirectoryOnly))
             .OrderByDescending(f => f.LastWriteTimeUtc)
-            .FirstOrDefault();
-        return latest?.FullName;
+            .ToList();
+    }
+
+    private static string? DefaultSaveGamesRoot()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return string.IsNullOrWhiteSpace(localAppData)
+            ? null
+            : Path.Combine(localAppData, "FactoryGame", "Saved", "SaveGames");
     }
 }

@@ -28,6 +28,24 @@ public class PlannerApiClient(HttpClient httpClient)
         var error = await response.Content.ReadAsStringAsync(ct);
         return new CatalogueConfigureResult(false, null, error);
     }
+
+    public Task<FactoryStateViewModel?> GetFactoryStateAsync(CancellationToken ct = default) =>
+        httpClient.GetFromJsonAsync<FactoryStateViewModel>("/factory/state", ct);
+
+    public async Task<DetectedSaveViewModel[]> GetDetectedSavesAsync(CancellationToken ct = default) =>
+        await httpClient.GetFromJsonAsync<DetectedSaveViewModel[]>("/factory/saves", ct) ?? [];
+
+    public async Task<FactoryIngestResult> IngestSaveAsync(string savePath, CancellationToken ct = default)
+    {
+        var response = await httpClient.PostAsJsonAsync("/factory/ingest", new { savePath }, ct);
+        if (response.IsSuccessStatusCode)
+        {
+            var view = await response.Content.ReadFromJsonAsync<FactoryStateViewModel>(ct);
+            return new FactoryIngestResult(true, view, null);
+        }
+        var error = await response.Content.ReadAsStringAsync(ct);
+        return new FactoryIngestResult(false, null, error);
+    }
 }
 
 public sealed record CatalogItem(string Id, string Name);
@@ -61,3 +79,27 @@ public sealed record CatalogueStatusView(
     IReadOnlyList<string> Warnings);
 
 public sealed record CatalogueConfigureResult(bool Success, CatalogueStatusView? Status, string? Error);
+
+public sealed record SaveMetadataViewModel(
+    string SessionName,
+    int SaveVersion,
+    int BuildVersion,
+    double PlayedSeconds,
+    DateTime SaveDateTimeUtc);
+
+public sealed record CountViewModel(string Key, int Count);
+
+public sealed record FactoryStateViewModel(
+    bool IsLoaded,
+    string? Source,
+    SaveMetadataViewModel? Save,
+    IReadOnlyList<CountViewModel> Miners,
+    IReadOnlyList<CountViewModel> Buildings,
+    IReadOnlyList<CountViewModel> Belts,
+    IReadOnlyList<CountViewModel> Generators,
+    int ResourceNodeCount,
+    IReadOnlyList<string> Warnings);
+
+public sealed record FactoryIngestResult(bool Success, FactoryStateViewModel? State, string? Error);
+
+public sealed record DetectedSaveViewModel(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);

@@ -1,0 +1,246 @@
+@page "/factory/ingest"
+@rendermode InteractiveServer
+@inject PlannerApiClient Api
+
+<PageTitle>Factory state</PageTitle>
+
+<h1>Factory state</h1>
+
+@if (state is null)
+{
+    <p><em>Loading status...</em></p>
+}
+else
+{
+    <div class="@StatusAlertClass">
+        <strong>@StatusHeadline</strong>
+        @if (!string.IsNullOrEmpty(state.Source))
+        {
+            <div class="small">Source: <code>@state.Source</code></div>
+        }
+        @if (state.Save is { } save)
+        {
+            <div class="small">
+                <strong>@save.SessionName</strong>
+                · save v@(save.SaveVersion) (build @save.BuildVersion)
+                · played @FormatPlayed(save.PlayedSeconds)
+                · saved @save.SaveDateTimeUtc.ToString("u")
+            </div>
+        }
+    </div>
+
+    @if (state.IsLoaded)
+    {
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h5>Miners <span class="text-muted small">by tier</span></h5>
+                @CountTable(state.Miners, "No miners.")
+            </div>
+            <div class="col-md-6">
+                <h5>Belts <span class="text-muted small">by tier</span></h5>
+                @CountTable(state.Belts, "No belts.")
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h5>Generators <span class="text-muted small">by kind</span></h5>
+                @CountTable(state.Generators, "No generators.")
+            </div>
+            <div class="col-md-6">
+                <h5>Resource nodes</h5>
+                <p class="display-6 mb-0">@state.ResourceNodeCount.ToString("N0")</p>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-12">
+                <h5>Production buildings <span class="text-muted small">by type</span></h5>
+                @CountTable(state.Buildings, "No production buildings.")
+                <p class="small text-muted mt-1">
+                    Clock speed and bound recipe are not yet extracted — tracked as a follow-up to milestone #12.
+                </p>
+            </div>
+        </div>
+
+        @if (state.Warnings is { Count: > 0 })
+        {
+            <details class="mt-3">
+                <summary>@state.Warnings.Count warning(s) during parse</summary>
+                <ul class="small">
+                    @foreach (var w in state.Warnings.Take(50))
+                    {
+                        <li>@w</li>
+                    }
+                    @if (state.Warnings.Count > 50)
+                    {
+                        <li><em>(@(state.Warnings.Count - 50) more not shown)</em></li>
+                    }
+                </ul>
+            </details>
+        }
+    }
+}
+
+<div class="mt-4">
+    @if (detectedSaves is { Length: > 0 })
+    {
+        <label class="form-label">Detected save files</label>
+        <select class="form-select" @bind="selectedSavePath" @bind:after="OnDetectedSaveSelected">
+            <option value="">— pick a save —</option>
+            @foreach (var s in detectedSaves)
+            {
+                <option value="@s.Path">
+                    @s.Name · @s.LastWriteTimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") · @FormatSize(s.SizeBytes)
+                </option>
+            }
+        </select>
+        <div class="form-text mb-3">
+            Found @detectedSaves.Length save(s) under <code>%LocalAppData%\FactoryGame\Saved\SaveGames\</code>.
+            Selecting one fills the path field below.
+        </div>
+    }
+
+    <label class="form-label">Path to a Satisfactory <code>.sav</code> file or a SaveGames directory</label>
+    <input type="text" class="form-control" @bind="pathInput"
+        placeholder="C:\Users\&lt;you&gt;\AppData\Local\FactoryGame\Saved\SaveGames\&lt;steamId&gt;\Beta Game_autosave_0.sav" />
+    <div class="form-text">
+        Either point at a specific <code>.sav</code> file or a directory (we'll pick the most-recently-written
+        <code>*.sav</code>). Startup resolution order:
+        <code>ERP_SATISFACTORY_SAVE_PATH</code> env var → user-saved (this form) →
+        <code>FactoryState:Satisfactory:SavePath</code> in <code>appsettings</code> → auto-detect under
+        <code>%LocalAppData%\FactoryGame\Saved\SaveGames\</code>.
+    </div>
+    <button class="btn btn-primary mt-2" type="button" @onclick="Ingest"
+        disabled="@(string.IsNullOrWhiteSpace(pathInput) || isIngesting)">
+        @(isIngesting ? "Ingesting..." : "Ingest")
+    </button>
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <span class="@MessageClass ms-3">@message</span>
+    }
+</div>
+
+@code {
+    private FactoryStateViewModel? state;
+    private DetectedSaveViewModel[]? detectedSaves;
+    private string? pathInput;
+    private string? selectedSavePath;
+    private string? message;
+    private bool messageIsError;
+    private bool isIngesting;
+
+    private string StatusAlertClass => state is null
+        ? "alert alert-secondary"
+        : state.IsLoaded ? "alert alert-success"
+        : "alert alert-warning";
+
+    private string StatusHeadline => state is null
+        ? ""
+        : state.IsLoaded ? "Factory state loaded."
+        : "No save loaded. Configure your save-file path below.";
+
+    private string MessageClass => messageIsError ? "text-danger" : "text-success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var stateTask = Api.GetFactoryStateAsync();
+        var savesTask = Api.GetDetectedSavesAsync();
+        await Task.WhenAll(stateTask, savesTask);
+
+        state = await stateTask;
+        detectedSaves = await savesTask;
+
+        if (state is { IsLoaded: true, Source: { } source })
+        {
+            pathInput = source;
+            // Pre-select if this path is one of the detected saves.
+            if (detectedSaves.Any(s => string.Equals(s.Path, source, StringComparison.OrdinalIgnoreCase)))
+            {
+                selectedSavePath = source;
+            }
+        }
+    }
+
+    private void OnDetectedSaveSelected()
+    {
+        if (!string.IsNullOrWhiteSpace(selectedSavePath))
+        {
+            pathInput = selectedSavePath;
+        }
+    }
+
+    private async Task Ingest()
+    {
+        if (string.IsNullOrWhiteSpace(pathInput)) return;
+
+        isIngesting = true;
+        message = null;
+        try
+        {
+            var result = await Api.IngestSaveAsync(pathInput!);
+            if (result.Success && result.State is not null)
+            {
+                state = result.State;
+                var totalBuildings = result.State.Buildings.Sum(b => b.Count);
+                message = $"Loaded {result.State.Miners.Sum(m => m.Count)} miners, "
+                    + $"{totalBuildings} buildings, {result.State.Belts.Sum(b => b.Count)} belts.";
+                messageIsError = false;
+            }
+            else
+            {
+                message = result.Error ?? "Failed to parse save file.";
+                messageIsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            messageIsError = true;
+        }
+        finally
+        {
+            isIngesting = false;
+        }
+    }
+
+    private static RenderFragment CountTable(IReadOnlyList<CountViewModel> rows, string emptyLabel) => __builder =>
+    {
+        if (rows.Count == 0)
+        {
+            <p class="text-muted small mb-0">@emptyLabel</p>
+            return;
+        }
+
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">Type</th>
+                    <th scope="col" class="text-end">Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    <tr>
+                        <td><code>@row.Key</code></td>
+                        <td class="text-end">@row.Count.ToString("N0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    };
+
+    private static string FormatPlayed(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(seconds);
+        return $"{(int)t.TotalHours}h {t.Minutes:00}m";
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / 1024.0 / 1024.0:F1} MB";
+    }
+}

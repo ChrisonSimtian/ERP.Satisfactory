@@ -1,7 +1,9 @@
 using ERP.Application;
+using ERP.Application.Commands.IngestSave;
 using ERP.Application.Queries.PlanProduction;
 using ERP.Domain;
 using ERP.Infrastructure;
+using Satisfactory.Save;
 using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -65,6 +67,38 @@ app.MapPost("/catalogue/configure", (ConfigureCatalogueRequest request, ICatalog
     }
 });
 
+app.MapGet("/factory/state", (IFactoryStateProvider provider) => FactoryStateView.From(provider));
+
+app.MapGet("/factory/saves", () =>
+    SaveFileResolver.EnumerateDetectedSaves()
+        .Select(f => new DetectedSaveView(f.FullName, f.Name, f.LastWriteTimeUtc, f.Length))
+        .ToList());
+
+app.MapPost("/factory/ingest", async (
+    IngestSaveRequest request, IMessageBus bus, IFactoryStateProvider provider, ILoggerFactory loggerFactory) =>
+{
+    if (string.IsNullOrWhiteSpace(request.SavePath))
+        return Results.BadRequest(new { error = "SavePath is required." });
+
+    try
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        await bus.InvokeAsync<FactoryStateStatus>(new IngestSaveCommand(request.SavePath));
+        sw.Stop();
+        loggerFactory.CreateLogger("FactoryIngestEndpoint")
+            .LogInformation("Ingested save in {Elapsed}ms", sw.ElapsedMilliseconds);
+        return Results.Ok(FactoryStateView.From(provider));
+    }
+    catch (FileNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(title: "Failed to parse save", detail: ex.Message, statusCode: 422);
+    }
+});
+
 app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvider catalog, ILoggerFactory loggerFactory) =>
 {
     if (!catalog.IsLoaded || catalog.Recipes.Count == 0)
@@ -102,6 +136,71 @@ public record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 public sealed record ItemDto(string Id, string Name);
 
 public sealed record ConfigureCatalogueRequest(string DocsPath);
+
+public sealed record IngestSaveRequest(string SavePath);
+
+public sealed record DetectedSaveView(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);
+
+public sealed record SaveMetadataView(
+    string SessionName,
+    int SaveVersion,
+    int BuildVersion,
+    double PlayedSeconds,
+    DateTime SaveDateTimeUtc);
+
+public sealed record CountView(string Key, int Count);
+
+public sealed record FactoryStateView(
+    bool IsLoaded,
+    string? Source,
+    SaveMetadataView? Save,
+    IReadOnlyList<CountView> Miners,
+    IReadOnlyList<CountView> Buildings,
+    IReadOnlyList<CountView> Belts,
+    IReadOnlyList<CountView> Generators,
+    int ResourceNodeCount,
+    IReadOnlyList<string> Warnings)
+{
+    public static FactoryStateView From(IFactoryStateProvider provider)
+    {
+        var state = provider.Current;
+        var meta = provider.IsLoaded
+            ? new SaveMetadataView(
+                state.Save.SessionName,
+                state.Save.SaveVersion,
+                state.Save.BuildVersion,
+                state.Save.PlayedTime.TotalSeconds,
+                state.Save.SaveDateTimeUtc)
+            : null;
+
+        return new FactoryStateView(
+            IsLoaded: provider.IsLoaded,
+            Source: provider.Source,
+            Save: meta,
+            Miners: state.Miners
+                .GroupBy(m => m.Tier.ToString())
+                .Select(g => new CountView(g.Key, g.Count()))
+                .OrderBy(c => c.Key, StringComparer.Ordinal)
+                .ToList(),
+            Buildings: state.Buildings
+                .GroupBy(b => b.Building.Value)
+                .Select(g => new CountView(g.Key, g.Count()))
+                .OrderByDescending(c => c.Count)
+                .ToList(),
+            Belts: state.Belts
+                .GroupBy(b => b.Tier.ToString())
+                .Select(g => new CountView(g.Key, g.Count()))
+                .OrderBy(c => c.Key, StringComparer.Ordinal)
+                .ToList(),
+            Generators: state.Generators
+                .GroupBy(g => g.Kind.ToString())
+                .Select(g => new CountView(g.Key, g.Count()))
+                .OrderBy(c => c.Key, StringComparer.Ordinal)
+                .ToList(),
+            ResourceNodeCount: state.ResourceNodes.Count,
+            Warnings: state.Warnings);
+    }
+}
 
 public sealed record TargetDto(string ItemId, decimal ItemsPerMinute);
 public sealed record AvailabilityDto(string ItemId, decimal ItemsPerMinute);
