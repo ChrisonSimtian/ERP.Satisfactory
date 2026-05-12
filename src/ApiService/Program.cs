@@ -100,7 +100,7 @@ app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvid
     }
 
     var query = new PlanProductionQuery(
-        Targets:   request.Targets.Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
+        Targets: request.Targets.Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
         Available: request.Available.Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList());
 
     var logger = loggerFactory.CreateLogger("PlannerEndpoint");
@@ -221,6 +221,6 @@ public sealed record PlanDto(
                 s.InputsPerMinute.Select(ToAmount).ToList(),
                 s.OutputsPerMinute.Select(ToAmount).ToList())).ToList(),
             RawInputsConsumed: plan.RawInputsConsumed.Select(ToAmount).ToList(),
-            MissingInputs:    plan.MissingInputs.Select(ToAmount).ToList());
+            MissingInputs: plan.MissingInputs.Select(ToAmount).ToList());
     }
 }
