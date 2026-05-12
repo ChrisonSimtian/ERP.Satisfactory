@@ -9,24 +9,24 @@ on:
 
 permissions:
   contents: read
+  checks: write       # publish-unit-test-result-action needs this
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  # ---------------------------------------------------------------------------
+  # Lint — OS-agnostic, single runner.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint (dotnet format)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        # `submodules: recursive` would normally do it, but .gitmodules pins
-        # vendor/SatisfactorySaveNet with `update = none` (so it doesn't
-        # auto-change on local branch switches). Init explicitly in the next
-        # step instead.
 
       - name: Initialize vendored SatisfactorySaveNet submodule
         run: git -c submodule.vendor/SatisfactorySaveNet.update=checkout submodule update --init --recursive
@@ -35,24 +35,89 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/global.json', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          key: ubuntu-latest-nuget-${{ hashFiles('**/*.csproj', '**/global.json') }}
+          restore-keys: ubuntu-latest-nuget-
 
-      # Two SDKs: .NET 10 preview (pinned in root global.json, for the main
-      # solution) and .NET 8 (targeted by the vendored SatisfactorySaveNet
-      # submodule). setup-dotnet installs both.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          global-json-file: global.json
+
+      - name: Format check
+        run: ./build.sh Format
+
+  # ---------------------------------------------------------------------------
+  # Build & Test — runs on Linux, Windows, macOS.
+  # NUKE is the source of truth; YAML just orchestrates.
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize vendored SatisfactorySaveNet submodule
+        shell: bash
+        run: git -c submodule.vendor/SatisfactorySaveNet.update=checkout submodule update --init --recursive
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ matrix.os }}-nuget-${{ hashFiles('**/*.csproj', '**/global.json') }}
+          restore-keys: ${{ matrix.os }}-nuget-
+
       - name: Setup .NET (10 from global.json + 8 for vendor submodule)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
           global-json-file: global.json
 
-      - name: Restore
-        run: dotnet restore ERP.Satisfactory.sln
+      - name: Build & Test
+        shell: bash
+        run: ./build.sh Test
 
-      - name: Build (Release)
-        run: dotnet build ERP.Satisfactory.sln --configuration Release --no-restore
+      - name: Upload TRX test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: artifacts/test-results/*.trx
+          if-no-files-found: warn
 
-      - name: Test
-        run: dotnet test ERP.Satisfactory.sln --configuration Release --no-build --logger "console;verbosity=normal"
+  # ---------------------------------------------------------------------------
+  # Publish — aggregates TRX from every OS in the matrix into a single
+  # check + PR comment so failures show up directly in the PR UI.
+  # ---------------------------------------------------------------------------
+  publish-test-results:
+    name: Publish test results
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Download all TRX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results
+          pattern: test-results-*
+          merge-multiple: false
+
+      - name: Publish results to commit check
+        uses: EnricoMi/publish-unit-test-result-action/linux@v2
+        with:
+          files: test-results/**/*.trx
+          check_name: Test results
+          comment_mode: changes in failures

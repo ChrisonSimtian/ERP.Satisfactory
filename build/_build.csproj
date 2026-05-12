@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace></RootNamespace>
+
+    <!-- NUKE conventions: build project sits in build/, scripts at the repo root. -->
+    <NukeRootDirectory>..</NukeRootDirectory>
+    <NukeScriptDirectory>..</NukeScriptDirectory>
+    <NukeTelemetryVersion>1</NukeTelemetryVersion>
+
+    <!-- Suppress noisy diagnostics common in NUKE build scripts. -->
+    <NoWarn>CS0649;CS0169;CA1050;CA1822;CA2211;IDE0079;NU5104</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nuke.Common" Version="10.1.0" />
+  </ItemGroup>
+
+</Project>

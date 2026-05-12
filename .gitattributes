@@ -1,0 +1,33 @@
+# Default to Git's automatic handling for text files.
+* text=auto
+
+# Shell scripts MUST stay LF — Windows-checkout users still run them via
+# bash (WSL / Git Bash) or via build.cmd which calls build.ps1, but the
+# shebang line breaks if CRLF leaks in.
+*.sh text eol=lf
+*.bash text eol=lf
+
+# PowerShell + CMD prefer CRLF on Windows (works on Mac/Linux too via pwsh).
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Source files — let core.autocrlf normalize; force LF where ecosystem expects it.
+*.cs text
+*.csproj text
+*.sln text
+*.slnx text
+*.json text
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binaries — never alter.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.sav binary
+*.dll binary
+*.exe binary
+*.pdb binary
