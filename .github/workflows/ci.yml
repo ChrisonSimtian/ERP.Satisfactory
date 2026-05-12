@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/global.json', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # Two SDKs: .NET 10 preview (pinned in root global.json, for the main
+      # solution) and .NET 8 (targeted by the vendored SatisfactorySaveNet
+      # submodule). setup-dotnet installs both.
+      - name: Setup .NET (10 from global.json + 8 for vendor submodule)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore ERP.Satisfactory.sln
+
+      - name: Build (Release)
+        run: dotnet build ERP.Satisfactory.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test ERP.Satisfactory.sln --configuration Release --no-build --logger "console;verbosity=normal"
