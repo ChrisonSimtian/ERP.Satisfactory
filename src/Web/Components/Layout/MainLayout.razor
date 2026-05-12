@@ -7,10 +7,13 @@
 
     <main>
         <div class="top-row">
-            <button id="theme-toggle-btn" type="button" class="theme-toggle" onclick="toggleTheme()" title="Toggle light / dark mode">
+            <span class="status-strip" aria-hidden="true">SYSTEM ONLINE</span>
+            <button id="theme-toggle-btn" type="button" class="theme-toggle" onclick="toggleTheme()"
+                title="Toggle light / dark mode">
                 ☀ Light
             </button>
         </div>
+        <div class="hazard-tape thin" aria-hidden="true"></div>
 
         <article class="content px-4">
             @Body

@@ -1,35 +1,51 @@
 /* =========================================================================
-   ERP.Satisfactory — FICSIT-inspired theme (dark by default, light toggle).
-   Built on Bootstrap 5's data-bs-theme switch. CSS custom properties are
-   the single source of truth; everything below them is an override.
+   ERP.Satisfactory — Bespoke FICSIT-industrial theme.
+
+   Layered approach:
+     1. CSS custom properties define the palette (dark + light variants).
+     2. Bootstrap variable overrides pull the same palette into BS components.
+     3. Bespoke utility classes (hazard tape, LEDs, gear spinner, panel cards)
+        give the visual personality.
+
+   All icons + decorations are inline SVG so the app stays offline-friendly
+   and the theme follows currentColor / data-bs-theme automatically.
    ========================================================================= */
 
 :root,
 [data-bs-theme="dark"] {
-    /* FICSIT brand-ish palette. */
+    /* FICSIT brand palette. */
     --fx-orange:        #FA9549;
     --fx-orange-bright: #FFB070;
     --fx-orange-dim:    #C77437;
+    --fx-orange-glow:   rgba(250, 149, 73, 0.4);
     --fx-yellow:        #FFC53D;
+    --fx-yellow-dim:    #C9941F;
     --fx-caution:       #F2A93B;
 
     /* Dark surfaces. */
-    --fx-bg:            #1B1B1F;
-    --fx-bg-elevated:   #26262B;
-    --fx-bg-input:      #2F2F35;
-    --fx-border:        #3A3A40;
+    --fx-bg:            #16161A;
+    --fx-bg-elevated:   #1F1F25;
+    --fx-bg-panel:      #25252B;
+    --fx-bg-input:      #2A2A30;
+    --fx-border:        #3A3A42;
     --fx-border-soft:   #2F2F35;
+    --fx-border-strong: #4A4A52;
 
     /* Text. */
     --fx-text:          #E8E8EB;
     --fx-text-muted:    #9A9AA0;
+    --fx-text-dim:      #6B6B72;
     --fx-text-strong:   #FFFFFF;
 
-    /* Status. */
+    /* Status (with glow for LEDs). */
     --fx-success:       #5FC97C;
+    --fx-success-glow:  rgba(95, 201, 124, 0.55);
     --fx-warning:       var(--fx-caution);
+    --fx-warning-glow:  rgba(242, 169, 59, 0.55);
     --fx-danger:        #E5604A;
+    --fx-danger-glow:   rgba(229, 96, 74, 0.55);
     --fx-info:          #5FB0C9;
+    --fx-info-glow:     rgba(95, 176, 201, 0.55);
 
     /* Bootstrap variable overrides. */
     --bs-body-bg:       var(--fx-bg);
@@ -41,17 +57,23 @@
     --bs-border-color:  var(--fx-border);
     --bs-secondary-color: var(--fx-text-muted);
     --bs-tertiary-color:  var(--fx-text-muted);
+
+    /* Schematic grid (faint) used as a body backdrop. */
+    --fx-grid-line:     rgba(250, 149, 73, 0.035);
 }
 
 [data-bs-theme="light"] {
-    --fx-bg:            #F4F0E8;       /* warm off-white, easier on the eyes than pure white */
+    --fx-bg:            #F0EBE0;
     --fx-bg-elevated:   #FFFFFF;
+    --fx-bg-panel:      #FAF6EC;
     --fx-bg-input:      #FFFFFF;
-    --fx-border:        #D8D0C0;
-    --fx-border-soft:   #E8E0D0;
+    --fx-border:        #D4CBB6;
+    --fx-border-soft:   #E0D8C4;
+    --fx-border-strong: #B0A688;
 
     --fx-text:          #1B1B1F;
     --fx-text-muted:    #6A6A70;
+    --fx-text-dim:      #98948A;
     --fx-text-strong:   #000000;
 
     --bs-body-bg:       var(--fx-bg);
@@ -60,29 +82,253 @@
     --bs-link-hover-color: var(--fx-orange);
     --bs-border-color:  var(--fx-border);
     --bs-secondary-color: var(--fx-text-muted);
+
+    --fx-grid-line:     rgba(199, 116, 55, 0.05);
 }
+
+/* ------------------------------------------------------------------------
+   Typography: industrial sans for headings (Bahnschrift on Windows),
+   readable Segoe UI Variable for body. All system-bundled — no CDN.
+   ------------------------------------------------------------------------ */
 
 html, body {
-    font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--bs-body-bg);
     color: var(--bs-body-color);
+    /* Faint schematic grid behind everything. */
+    background-image:
+        linear-gradient(var(--fx-grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fx-grid-line) 1px, transparent 1px);
+    background-size: 32px 32px;
 }
 
-/* Headings sit on a tighter, slightly condensed feel. */
-h1, h2, h3, h4, h5, h6 {
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+    font-family: 'Bahnschrift Condensed', 'Bahnschrift', 'Inter Tight', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
     color: var(--fx-text-strong);
-    letter-spacing: -0.01em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 600;
 }
 
 h1 {
-    font-weight: 600;
+    font-size: 1.85rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     border-bottom: 2px solid var(--fx-orange);
     padding-bottom: 0.4rem;
     margin-bottom: 1rem;
     display: inline-block;
+    position: relative;
 }
 
-/* Links. */
+/* Tiny "tick" decoration to the right of every H1 underline. */
+h1::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    right: -10px;
+    width: 10px;
+    height: 2px;
+    background: var(--fx-yellow);
+}
+
+h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
+
+.lead {
+    color: var(--fx-text-muted);
+    font-size: 1.05rem;
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------------
+   Hazard tape — diagonal yellow/black stripes. Used as a strip element
+   under the top-row, as section dividers, on focused buttons, etc.
+   ------------------------------------------------------------------------ */
+
+.hazard-tape {
+    height: 8px;
+    background: repeating-linear-gradient(
+        135deg,
+        var(--fx-yellow) 0,
+        var(--fx-yellow) 16px,
+        #1A1A1A 16px,
+        #1A1A1A 32px);
+    opacity: 0.85;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4) inset;
+}
+
+.hazard-tape.thin {
+    height: 4px;
+}
+
+/* ------------------------------------------------------------------------
+   Panel cards — "riveted plate" look with corner accents.
+   ------------------------------------------------------------------------ */
+
+.card, .fx-panel {
+    background-color: var(--fx-bg-panel);
+    border: 1px solid var(--fx-border);
+    border-radius: 4px;
+    position: relative;
+    overflow: visible;
+}
+
+.card::before, .fx-panel::before,
+.card::after,  .fx-panel::after {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--fx-orange);
+    pointer-events: none;
+}
+
+/* Top-left corner: ┌ */
+.card::before, .fx-panel::before {
+    top: -2px;
+    left: -2px;
+    border-right: none;
+    border-bottom: none;
+}
+
+/* Bottom-right corner: ┘ */
+.card::after, .fx-panel::after {
+    bottom: -2px;
+    right: -2px;
+    border-left: none;
+    border-top: none;
+}
+
+.card-title {
+    color: var(--fx-orange);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 1rem;
+}
+
+.card-body { padding: 1.1rem 1.25rem; }
+
+/* ------------------------------------------------------------------------
+   Status LEDs — small glowing dot used inside alerts / next to labels.
+   <span class="led led-on"></span>
+   ------------------------------------------------------------------------ */
+
+.led {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--fx-text-dim);
+    box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.6);
+    margin-right: 0.4rem;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+
+.led-on      { background: var(--fx-success); box-shadow: 0 0 6px 1px var(--fx-success-glow), inset 0 0 2px rgba(0,0,0,0.5); animation: led-pulse 2.5s ease-in-out infinite; }
+.led-warn    { background: var(--fx-warning); box-shadow: 0 0 6px 1px var(--fx-warning-glow), inset 0 0 2px rgba(0,0,0,0.5); animation: led-pulse 1.6s ease-in-out infinite; }
+.led-error   { background: var(--fx-danger);  box-shadow: 0 0 6px 1px var(--fx-danger-glow),  inset 0 0 2px rgba(0,0,0,0.5); animation: led-pulse 0.9s ease-in-out infinite; }
+.led-info    { background: var(--fx-info);    box-shadow: 0 0 6px 1px var(--fx-info-glow),    inset 0 0 2px rgba(0,0,0,0.5); }
+
+@keyframes led-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+/* ------------------------------------------------------------------------
+   Animated gear spinner — used for the Ingest button while busy.
+   <span class="gear-spin" aria-hidden="true"></span>
+   ------------------------------------------------------------------------ */
+
+.gear-spin {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background-color: currentColor;
+    -webkit-mask: var(--fx-icon-gear) center / contain no-repeat;
+            mask: var(--fx-icon-gear) center / contain no-repeat;
+    animation: gear-rotate 1.4s linear infinite;
+    vertical-align: -2px;
+    margin-right: 0.4em;
+}
+
+@keyframes gear-rotate {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* Reusable SVG asset variables (URI-encoded so CSS can reference them). */
+:root,
+[data-bs-theme="dark"],
+[data-bs-theme="light"] {
+    --fx-icon-gear: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='currentColor' d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 1l-.5 2.6a8.8 8.8 0 0 0-2.3 1L6 3.2 3.2 6l1.4 2.2c-.5.7-.8 1.5-1 2.3L1 11v2l2.6.5c.2.8.5 1.6 1 2.3L3.2 18 6 20.8l2.2-1.4c.7.5 1.5.8 2.3 1L11 23h2l.5-2.6c.8-.2 1.6-.5 2.3-1l2.2 1.4L20.8 18l-1.4-2.2c.5-.7.8-1.5 1-2.3L23 13v-2l-2.6-.5a8.8 8.8 0 0 0-1-2.3L20.8 6 18 3.2l-2.2 1.4c-.7-.5-1.5-.8-2.3-1L13 1h-2z'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------------------
+   Bespoke .fx-icon set — inline-mask SVGs that inherit currentColor.
+   Used in the NavMenu (block) and inside card titles / inline labels.
+   Each icon has a `.fx-icon-*` modifier with its mask-image.
+   ------------------------------------------------------------------------ */
+
+.fx-icon,
+.fx-icon-inline {
+    display: inline-block;
+    background-color: currentColor;
+    -webkit-mask-position: center;
+            mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+            mask-size: contain;
+    flex-shrink: 0;
+}
+
+.fx-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.7rem;
+    vertical-align: -3px;
+}
+
+.fx-icon-inline {
+    width: 1.1em;
+    height: 1.1em;
+    vertical-align: -3px;
+    margin-right: 0.35em;
+}
+
+.fx-icon-home,
+.fx-icon-inline.fx-icon-home {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M12 3 2 12h3v9h5v-6h4v6h5v-9h3L12 3zm6 0v3h-2V3h2z'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M12 3 2 12h3v9h5v-6h4v6h5v-9h3L12 3zm6 0v3h-2V3h2z'/%3E%3C/svg%3E");
+}
+
+.fx-icon-wrench,
+.fx-icon-inline.fx-icon-wrench {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='black'%3E%3Cpath d='M6.8 2.5a4.5 4.5 0 0 0-3.2 7.7l1.5-1.5a2.5 2.5 0 0 1 3.5-3.5L7 6.8l1.8 1.8 1.6-1.6a4.5 4.5 0 0 0-3.6-4.5zm-3 9 7.7 7.7a2 2 0 1 0 2.8-2.8L6.7 8.7l-2.9 2.8z'/%3E%3Cpath d='M18.5 3 14 7.5l1.5 1.5L20 4.5 18.5 3zm-1 5L11.7 13.8 13 15l5.8-5.8L17.5 8zm4 4.5L17 17l1.5 1.5L23 14l-1.5-1.5z'/%3E%3C/g%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='black'%3E%3Cpath d='M6.8 2.5a4.5 4.5 0 0 0-3.2 7.7l1.5-1.5a2.5 2.5 0 0 1 3.5-3.5L7 6.8l1.8 1.8 1.6-1.6a4.5 4.5 0 0 0-3.6-4.5zm-3 9 7.7 7.7a2 2 0 1 0 2.8-2.8L6.7 8.7l-2.9 2.8z'/%3E%3Cpath d='M18.5 3 14 7.5l1.5 1.5L20 4.5 18.5 3zm-1 5L11.7 13.8 13 15l5.8-5.8L17.5 8zm4 4.5L17 17l1.5 1.5L23 14l-1.5-1.5z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.fx-icon-gear,
+.fx-icon-inline.fx-icon-gear {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 1l-.5 2.6a8.8 8.8 0 0 0-2.3 1L6 3.2 3.2 6l1.4 2.2c-.5.7-.8 1.5-1 2.3L1 11v2l2.6.5c.2.8.5 1.6 1 2.3L3.2 18 6 20.8l2.2-1.4c.7.5 1.5.8 2.3 1L11 23h2l.5-2.6c.8-.2 1.6-.5 2.3-1l2.2 1.4L20.8 18l-1.4-2.2c.5-.7.8-1.5 1-2.3L23 13v-2l-2.6-.5a8.8 8.8 0 0 0-1-2.3L20.8 6 18 3.2l-2.2 1.4c-.7-.5-1.5-.8-2.3-1L13 1h-2z'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 1l-.5 2.6a8.8 8.8 0 0 0-2.3 1L6 3.2 3.2 6l1.4 2.2c-.5.7-.8 1.5-1 2.3L1 11v2l2.6.5c.2.8.5 1.6 1 2.3L3.2 18 6 20.8l2.2-1.4c.7.5 1.5.8 2.3 1L11 23h2l.5-2.6c.8-.2 1.6-.5 2.3-1l2.2 1.4L20.8 18l-1.4-2.2c.5-.7.8-1.5 1-2.3L23 13v-2l-2.6-.5a8.8 8.8 0 0 0-1-2.3L20.8 6 18 3.2l-2.2 1.4c-.7-.5-1.5-.8-2.3-1L13 1h-2z'/%3E%3C/svg%3E");
+}
+
+.fx-icon-screwdriver,
+.fx-icon-inline.fx-icon-screwdriver {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='m18.5 2-5.3 5.3a2 2 0 0 0-2.8 0L8.6 9 14 14.4l1.7-1.7a2 2 0 0 0 0-2.8L21 4.5 18.5 2zM7 10l-4.5 4.5a2.5 2.5 0 1 0 3.5 3.5L13 11.5 7 10z'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='m18.5 2-5.3 5.3a2 2 0 0 0-2.8 0L8.6 9 14 14.4l1.7-1.7a2 2 0 0 0 0-2.8L21 4.5 18.5 2zM7 10l-4.5 4.5a2.5 2.5 0 1 0 3.5 3.5L13 11.5 7 10z'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------------------
+   Bootstrap overrides — buttons, forms, tables, alerts.
+   ------------------------------------------------------------------------ */
+
 a, .btn-link {
     color: var(--bs-link-color);
     text-decoration: none;
@@ -92,56 +338,58 @@ a:hover, .btn-link:hover {
     text-decoration: underline;
 }
 
-/* Primary button = FICSIT orange. */
 .btn-primary {
-    background-color: var(--fx-orange);
-    border-color: var(--fx-orange-dim);
+    background: linear-gradient(180deg, var(--fx-orange-bright) 0%, var(--fx-orange) 50%, var(--fx-orange-dim) 100%);
+    border: 1px solid var(--fx-orange-dim);
     color: #1B1B1F;
-    font-weight: 500;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    padding: 0.45rem 0.95rem;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .btn-primary:hover,
 .btn-primary:focus {
-    background-color: var(--fx-orange-bright);
+    background: linear-gradient(180deg, #FFC990 0%, var(--fx-orange-bright) 50%, var(--fx-orange) 100%);
     border-color: var(--fx-orange);
-    color: #1B1B1F;
+    color: #0F0F12;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 0 0 0.2rem var(--fx-orange-glow), 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 .btn-primary:disabled {
-    background-color: var(--fx-orange-dim);
-    border-color: var(--fx-orange-dim);
+    background: var(--fx-orange-dim);
     color: rgba(27, 27, 31, 0.6);
+    cursor: not-allowed;
 }
 
-/* Focus rings — orange, not blue. */
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus,
 .form-control:focus, .form-select:focus, .form-check-input:focus {
-    box-shadow: 0 0 0 0.2rem rgba(250, 149, 73, 0.35) !important;
+    box-shadow: 0 0 0 0.2rem var(--fx-orange-glow) !important;
     border-color: var(--fx-orange) !important;
 }
 
-/* Form controls. */
 .form-control, .form-select {
     background-color: var(--fx-bg-input);
     border-color: var(--fx-border);
     color: var(--fx-text);
+    font-family: 'Cascadia Mono', 'Consolas', 'Segoe UI Variable', 'Segoe UI', monospace;
+    font-size: 0.92rem;
 }
-.form-control::placeholder { color: var(--fx-text-muted); }
+.form-control::placeholder { color: var(--fx-text-dim); }
 .form-control:focus, .form-select:focus {
     background-color: var(--fx-bg-input);
     color: var(--fx-text);
 }
 .form-text { color: var(--fx-text-muted); }
-
-/* Cards. */
-.card {
-    background-color: var(--fx-bg-elevated);
-    border-color: var(--fx-border);
-}
-.card-title {
-    color: var(--fx-orange);
+.form-label {
+    color: var(--fx-text);
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
     font-weight: 600;
+    margin-bottom: 0.35rem;
 }
 
-/* Tables. */
 .table {
     --bs-table-bg: transparent;
     --bs-table-color: var(--fx-text);
@@ -152,29 +400,38 @@ a:hover, .btn-link:hover {
 .table > thead {
     color: var(--fx-text-muted);
     text-transform: uppercase;
-    font-size: 0.78rem;
-    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
     border-bottom: 2px solid var(--fx-orange-dim);
 }
-.table code {
-    color: var(--fx-text);
+.table > thead th {
+    background: linear-gradient(180deg, transparent 0%, rgba(250, 149, 73, 0.04) 100%);
+    font-weight: 700;
 }
+.table code { color: var(--fx-text); }
 
-/* Inline code chips — used heavily on the factory state page. */
+/* Inline code chips. */
 code {
     color: var(--fx-orange-bright);
     background-color: rgba(250, 149, 73, 0.08);
     padding: 0.1em 0.35em;
     border-radius: 3px;
     font-size: 0.9em;
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+}
+[data-bs-theme="light"] code {
+    color: var(--fx-orange-dim);
 }
 
-/* Alerts — FICSIT-style banner stripes. */
+/* Alerts: panel-like with a thick LED-coloured left stripe. */
 .alert {
-    background-color: var(--fx-bg-elevated);
+    background-color: var(--fx-bg-panel);
     border: 1px solid var(--fx-border);
-    border-left-width: 4px;
+    border-left: 5px solid var(--fx-text-muted);
     color: var(--fx-text);
+    padding: 0.85rem 1rem;
+    border-radius: 4px;
+    position: relative;
 }
 .alert-success { border-left-color: var(--fx-success); }
 .alert-success strong { color: var(--fx-success); }
@@ -186,24 +443,21 @@ code {
 .alert-info    { border-left-color: var(--fx-info);    }
 .alert-info strong    { color: var(--fx-info); }
 
-/* Status text helpers. */
+/* Status helpers. */
 .text-success { color: var(--fx-success) !important; }
 .text-danger  { color: var(--fx-danger)  !important; }
 .text-muted   { color: var(--fx-text-muted) !important; }
 
-/* "Lead" hero text on Home. */
-.lead {
-    color: var(--fx-text-muted);
-    font-size: 1.15rem;
-}
-
-/* Display numbers (resource node count). */
+/* Display numbers (resource node count, etc.). */
 .display-6 {
     color: var(--fx-orange);
-    font-weight: 600;
+    font-weight: 700;
+    font-family: 'Bahnschrift', 'Inter Tight', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 12px var(--fx-orange-glow);
 }
 
-/* Validation feedback — keep red but our shade. */
+/* Validation. */
 .valid.modified:not([type=checkbox]) { outline: 1px solid var(--fx-success); }
 .invalid { outline: 1px solid var(--fx-danger); }
 .validation-message { color: var(--fx-danger); }
@@ -211,32 +465,40 @@ code {
 .content { padding-top: 1.1rem; }
 h1:focus { outline: none; }
 
-/* Theme toggle button. */
+/* ------------------------------------------------------------------------
+   Theme toggle button.
+   ------------------------------------------------------------------------ */
+
 .theme-toggle {
     background: transparent;
     border: 1px solid var(--fx-border);
     color: var(--fx-text);
     border-radius: 4px;
-    padding: 0.25rem 0.6rem;
-    font-size: 0.85rem;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
     cursor: pointer;
     line-height: 1.4;
+    font-family: 'Bahnschrift', 'Segoe UI Variable', 'Segoe UI', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 .theme-toggle:hover {
     border-color: var(--fx-orange);
     color: var(--fx-orange);
+    box-shadow: 0 0 8px var(--fx-orange-glow);
 }
 
-/* Blazor error UI — keep visible, themed. */
+/* ------------------------------------------------------------------------
+   Blazor error UI — themed.
+   ------------------------------------------------------------------------ */
+
 .blazor-error-boundary {
     background: var(--fx-danger);
     padding: 1rem;
     color: #1B1B1F;
-    font-weight: 500;
+    font-weight: 600;
 }
-.blazor-error-boundary::after {
-    content: "An error has occurred.";
-}
+.blazor-error-boundary::after { content: "An error has occurred."; }
 
 .form-floating > .form-control-plaintext::placeholder,
 .form-floating > .form-control::placeholder {

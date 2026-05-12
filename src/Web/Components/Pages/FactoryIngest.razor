@@ -13,6 +13,7 @@
 else
 {
     <div class="@StatusAlertClass">
+        <span class="@LedClass" aria-hidden="true"></span>
         <strong>@StatusHeadline</strong>
         @if (!string.IsNullOrEmpty(state.Source))
         {
@@ -113,7 +114,15 @@ else
     </div>
     <button class="btn btn-primary mt-2" type="button" @onclick="Ingest"
         disabled="@(string.IsNullOrWhiteSpace(pathInput) || isIngesting)">
-        @(isIngesting ? "Ingesting..." : "Ingest")
+        @if (isIngesting)
+        {
+            <span class="gear-spin" aria-hidden="true"></span>
+            <text>Ingesting</text>
+        }
+        else
+        {
+            <text>Ingest</text>
+        }
     </button>
     @if (!string.IsNullOrEmpty(message))
     {
@@ -139,6 +148,11 @@ else
         ? ""
         : state.IsLoaded ? "Factory state loaded."
         : "No save loaded. Configure your save-file path below.";
+
+    private string LedClass => state is null
+        ? "led"
+        : state.IsLoaded ? "led led-on"
+        : "led led-warn";
 
     private string MessageClass => messageIsError ? "text-danger" : "text-success";
 

@@ -1,3 +1,7 @@
+/* =========================================================================
+   MainLayout — sidebar + main content surface, with hazard-tape strip.
+   ========================================================================= */
+
 .page {
     position: relative;
     display: flex;
@@ -8,22 +12,73 @@
 main {
     flex: 1;
     background-color: var(--bs-body-bg);
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar {
-    background: linear-gradient(180deg, #14141A 0%, #1F1F26 70%, #2A1F18 100%);
+    background:
+        linear-gradient(180deg, #0F0F14 0%, #1A1A21 50%, #261D14 100%);
     border-right: 1px solid var(--fx-border);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+    position: relative;
+}
+
+/* Faint vertical "rivet line" on the sidebar's inner edge. */
+.sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2px;
+    bottom: 0;
+    background-image: repeating-linear-gradient(
+        180deg,
+        transparent 0,
+        transparent 18px,
+        rgba(250, 149, 73, 0.35) 18px,
+        rgba(250, 149, 73, 0.35) 20px);
+    pointer-events: none;
 }
 
 .top-row {
-    background-color: var(--fx-bg-elevated);
-    border-bottom: 1px solid var(--fx-border);
+    background:
+        linear-gradient(180deg, var(--fx-bg-panel) 0%, var(--fx-bg) 100%);
+    border-bottom: 1px solid var(--fx-border-soft);
     justify-content: flex-end;
-    height: 3rem;
+    height: 2.6rem;
     display: flex;
     align-items: center;
-    padding: 0 1rem;
-    gap: 0.5rem;
+    padding: 0 1.25rem;
+    gap: 0.75rem;
+}
+
+/* Pulsing "SYSTEM ONLINE" indicator, top-left of the top-row. */
+.status-strip {
+    margin-right: auto;
+    font-family: 'Bahnschrift', 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fx-success);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.status-strip::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--fx-success);
+    box-shadow: 0 0 6px 1px rgba(95, 201, 124, 0.6);
+    animation: status-blink 2.5s ease-in-out infinite;
+}
+
+@keyframes status-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
 }
 
 #blazor-error-ui {
