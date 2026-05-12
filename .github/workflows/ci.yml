@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Lint — OS-agnostic, single runner.
+  # Lint — runs alongside Build & Test for parallel feedback.
   # ---------------------------------------------------------------------------
   lint:
     name: Lint (dotnet format)
@@ -48,32 +48,28 @@ jobs:
         run: ./build.sh Format
 
   # ---------------------------------------------------------------------------
-  # Build & Test — runs on Linux, Windows, macOS.
-  # NUKE is the source of truth; YAML just orchestrates.
+  # Build & Test — Linux only. OS-specific bugs surface locally (Chris dev's
+  # on Windows + Mac), so CI's job is just the basic "does it compile + tests
+  # pass" gate. Linux is the cheapest GH Actions runner.
   # ---------------------------------------------------------------------------
   build-and-test:
-    name: Build & Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Build & Test
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Initialize vendored SatisfactorySaveNet submodule
-        shell: bash
         run: git -c submodule.vendor/SatisfactorySaveNet.update=checkout submodule update --init --recursive
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ matrix.os }}-nuget-${{ hashFiles('**/*.csproj', '**/global.json') }}
-          restore-keys: ${{ matrix.os }}-nuget-
+          key: ubuntu-latest-nuget-${{ hashFiles('**/*.csproj', '**/global.json') }}
+          restore-keys: ubuntu-latest-nuget-
 
       - name: Setup .NET (10 from global.json + 8 for vendor submodule)
         uses: actions/setup-dotnet@v4
@@ -82,20 +78,18 @@ jobs:
           global-json-file: global.json
 
       - name: Build & Test
-        shell: bash
         run: ./build.sh Test
 
       - name: Upload TRX test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.os }}
+          name: test-results
           path: artifacts/test-results/*.trx
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
-  # Publish — aggregates TRX from every OS in the matrix into a single
-  # check + PR comment so failures show up directly in the PR UI.
+  # Publish — surface TRX results to commit check + PR comment.
   # ---------------------------------------------------------------------------
   publish-test-results:
     name: Publish test results
@@ -108,11 +102,11 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Download all TRX artifacts
+      - name: Download TRX artifacts
         uses: actions/download-artifact@v4
         with:
           path: test-results
-          pattern: test-results-*
+          pattern: test-results
           merge-multiple: false
 
       - name: Publish results to commit check

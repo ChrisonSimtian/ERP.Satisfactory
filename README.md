@@ -121,7 +121,8 @@ docs/adr/                 # Architecture decisions
 Every push to `main` and every PR targeting `main` runs:
 
 - **Lint** — `dotnet format --verify-no-changes` (Ubuntu)
-- **Build & Test** — Ubuntu + Windows + macOS in parallel
+- **Build & Test** — restore + build + xUnit (Ubuntu). OS-specific
+  regressions surface locally on Windows/Mac before reaching CI.
 - **Publish test results** — TRX files surface as a commit/PR check
 
 Pushes to `main` additionally trigger:
