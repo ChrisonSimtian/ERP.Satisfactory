@@ -1,3 +1,9 @@
+using ERP.Application;
+using ERP.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SatisfactorySaveNet;
 using SatisfactorySaveNet.Abstracts.Model;
 
@@ -11,83 +17,58 @@ if (savePath is null)
 }
 
 Console.WriteLine($"Loading: {savePath}");
-
-// Read header first so we can diagnose version mismatches before the body parse blows up.
-using (var headerStream = new FileStream(savePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-using (var headerReader = new BinaryReader(headerStream))
-{
-    var headerOnly = HeaderSerializer.Instance.Deserialize(headerReader);
-    Console.WriteLine();
-    Console.WriteLine("=== Header (read independently) ===");
-    DumpProps(headerOnly);
-}
-
-var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-SatisfactorySave save;
-try
-{
-    save = SaveFileSerializer.Instance.Deserialize(savePath);
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine();
-    Console.Error.WriteLine($"!!! Full deserialize FAILED after {stopwatch.ElapsedMilliseconds} ms: {ex.GetType().FullName}: {ex.Message}");
-    Console.Error.WriteLine(ex.StackTrace);
-    return 3;
-}
-stopwatch.Stop();
-Console.WriteLine($"Parsed in {stopwatch.ElapsedMilliseconds} ms");
-
-if (save.Body is not BodyV8 body)
-{
-    Console.Error.WriteLine($"Body is not V8 (got {save.Body?.GetType().Name ?? "null"}). v1.2 saves should be V8 — bailing.");
-    return 2;
-}
-
-var allObjects = body.Levels.SelectMany(l => l.Objects).ToList();
 Console.WriteLine();
-Console.WriteLine($"Levels: {body.Levels.Count}, Total objects: {allObjects.Count:N0}");
 
-var typeCounts = allObjects
-    .GroupBy(o => ShortName(o.TypePath))
-    .Select(g => new { Name = g.Key, Count = g.Count() })
-    .OrderByDescending(g => g.Count)
-    .ToList();
+// === Path 1: raw library output (sanity check that v1.2 still parses) ===
+RawDiagnostic(savePath);
+
+// === Path 2: live IFactoryStateProvider end-to-end through DI ===
+Console.WriteLine();
+Console.WriteLine("=== IFactoryStateProvider (adapter under DI) ===");
+
+var services = new ServiceCollection();
+services.AddLogging(b => b.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat = "HH:mm:ss "; }));
+services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
+    new Dictionary<string, string?> { ["FactoryState:Satisfactory:SavePath"] = savePath }
+).Build());
+services.AddErpInfrastructure(services.BuildServiceProvider().GetRequiredService<IConfiguration>());
+
+using var sp = services.BuildServiceProvider();
+var provider = sp.GetRequiredService<IFactoryStateProvider>();
+
+var status = provider.GetStatus();
+Console.WriteLine($"  IsLoaded:       {status.IsLoaded}");
+Console.WriteLine($"  Source:         {status.Source}");
+Console.WriteLine($"  Session:        {status.SessionName}");
+Console.WriteLine($"  Save version:   {status.SaveVersion}  (build {status.BuildVersion})");
+Console.WriteLine($"  Save UTC:       {status.SaveDateTimeUtc:O}");
+Console.WriteLine();
+Console.WriteLine($"  Miners:         {status.MinerCount}");
+Console.WriteLine($"  Buildings:      {status.BuildingCount}");
+Console.WriteLine($"  Belts:          {status.BeltCount}");
+Console.WriteLine($"  Generators:     {status.GeneratorCount}");
+Console.WriteLine($"  Resource nodes: {status.ResourceNodeCount}");
+
+var s = provider.Current;
+Console.WriteLine();
+Console.WriteLine("=== Miners by tier ===");
+foreach (var g in s.Miners.GroupBy(m => m.Tier).OrderBy(g => g.Key))
+    Console.WriteLine($"  {g.Key}: {g.Count()}");
 
 Console.WriteLine();
-Console.WriteLine("=== Top 20 class names ===");
-foreach (var t in typeCounts.Take(20))
-    Console.WriteLine($"  {t.Count,6:N0}  {t.Name}");
-
-string[] interestingPatterns = ["MinerMk", "Smelter", "Constructor", "Assembler", "Foundry", "OilRefinery", "Generator", "ResourceNode", "ConveyorBelt"];
-
-foreach (var pattern in interestingPatterns)
-{
-    var matches = typeCounts
-        .Where(t => t.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-        .ToList();
-    if (matches.Count == 0) continue;
-
-    Console.WriteLine();
-    Console.WriteLine($"=== {pattern} ===");
-    foreach (var m in matches)
-        Console.WriteLine($"  {m.Count,5:N0}  {m.Name}");
-}
+Console.WriteLine("=== Buildings by type ===");
+foreach (var g in s.Buildings.GroupBy(b => b.Building.Value).OrderByDescending(g => g.Count()))
+    Console.WriteLine($"  {g.Count(),5:N0}  {g.Key}");
 
 Console.WriteLine();
-Console.WriteLine("=== Miner positions ===");
-var miners = allObjects.OfType<ActorObject>()
-    .Where(a => a.TypePath.Contains("MinerMk", StringComparison.OrdinalIgnoreCase))
-    .ToList();
-
-foreach (var m in miners)
-{
-    var name = ShortName(m.TypePath);
-    Console.WriteLine($"  {name,-30}  pos=({m.Position.X,8:F0}, {m.Position.Y,8:F0}, {m.Position.Z,7:F0})  ref={m.ObjectReference.PathName}");
-}
+Console.WriteLine("=== Belts by tier ===");
+foreach (var g in s.Belts.GroupBy(b => b.Tier).OrderBy(g => g.Key))
+    Console.WriteLine($"  {g.Key}: {g.Count()}");
 
 Console.WriteLine();
-Console.WriteLine($"Total miners: {miners.Count}");
+Console.WriteLine("=== Generators by kind ===");
+foreach (var g in s.Generators.GroupBy(g => g.Kind).OrderBy(g => g.Key))
+    Console.WriteLine($"  {g.Key}: {g.Count()}");
 
 return 0;
 
@@ -100,33 +81,12 @@ static string? FindLatestSave(string dir)
         .FirstOrDefault()?.FullName;
 }
 
-static string ShortName(string typePath)
+static void RawDiagnostic(string savePath)
 {
-    if (string.IsNullOrEmpty(typePath)) return "(empty)";
-    var lastDot = typePath.LastIndexOf('.');
-    return lastDot < 0 ? typePath : typePath[(lastDot + 1)..];
-}
-
-static void DumpProps(object obj)
-{
-    foreach (var p in obj.GetType().GetProperties())
-    {
-        object? value;
-        try { value = p.GetValue(obj); }
-        catch { continue; }
-
-        if (value is null) continue;
-        if (value is System.Collections.IEnumerable enumerable and not string)
-        {
-            var count = 0;
-            foreach (var _ in enumerable) count++;
-            Console.WriteLine($"  {p.Name}: <{p.PropertyType.Name}, {count} items>");
-        }
-        else
-        {
-            var str = value.ToString();
-            if (str is { Length: > 100 }) str = str[..100] + "...";
-            Console.WriteLine($"  {p.Name}: {str}");
-        }
-    }
+    using var headerStream = new FileStream(savePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+    using var headerReader = new BinaryReader(headerStream);
+    var headerOnly = HeaderSerializer.Instance.Deserialize(headerReader);
+    Console.WriteLine("=== Header (raw library) ===");
+    Console.WriteLine($"  HeaderVersion={headerOnly.HeaderVersion}  SaveVersion={headerOnly.SaveVersion}  Build={headerOnly.BuildVersion}");
+    Console.WriteLine($"  Session={headerOnly.SessionName}  Played={TimeSpan.FromSeconds(headerOnly.PlayedSeconds)}  SaveUtc={headerOnly.SaveDateTimeUtc:O}");
 }
