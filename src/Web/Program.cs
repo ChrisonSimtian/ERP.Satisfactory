@@ -1,4 +1,3 @@
-using Web;
 using Web.Components;
 using Wolverine;
 
@@ -15,15 +14,9 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddOutputCache();
 
-builder.Services.AddHttpClient<WeatherApiClient>(client =>
+builder.Services.AddHttpClient<Web.PlannerApiClient>(client =>
     {
-        // This URL uses "https+http://" to indicate HTTPS is preferred over HTTP.
-        // Learn more about service discovery scheme resolution at https://aka.ms/dotnet/sdschemes.
-        client.BaseAddress = new("https+http://apiservice");
-    });
-
-builder.Services.AddHttpClient<PlannerApiClient>(client =>
-    {
+        // "https+http://" prefers HTTPS over HTTP — see https://aka.ms/dotnet/sdschemes
         client.BaseAddress = new("https+http://apiservice");
     });
 

@@ -28,17 +28,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapGet("/", () => "API service is running. See /catalog/items and /plan.");
-
-string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
-
-app.MapGet("/weatherforecast", () =>
-    Enumerable.Range(1, 5).Select(index => new WeatherForecast(
-        DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-        Random.Shared.Next(-20, 55),
-        summaries[Random.Shared.Next(summaries.Length)]))
-    .ToArray())
-.WithName("GetWeatherForecast");
+app.MapGet("/", () => "API service is running. See /catalog/items, /plan, /factory/state.");
 
 app.MapGet("/catalog/items", (ICatalogProvider catalog) =>
     catalog.Items
@@ -127,11 +117,6 @@ app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvid
 app.MapDefaultEndpoints();
 
 app.Run();
-
-public record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
 
 public sealed record ItemDto(string Id, string Name);
 
