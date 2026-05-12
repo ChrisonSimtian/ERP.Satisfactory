@@ -1,5 +1,5 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
 
 <head>
     <meta charset="utf-8" />
@@ -11,6 +11,33 @@
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
+    <script>
+        // Apply persisted theme before paint to avoid a flash.
+        (function () {
+            try {
+                var saved = localStorage.getItem('erp-theme');
+                if (saved === 'light' || saved === 'dark') {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+            } catch (_) { /* localStorage may be unavailable */ }
+        })();
+        function syncThemeButton() {
+            var current = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+            var btn = document.getElementById('theme-toggle-btn');
+            if (btn) btn.textContent = current === 'dark' ? '☀ Light' : '☾ Dark';
+        }
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', next);
+            try { localStorage.setItem('erp-theme', next); } catch (_) { }
+            syncThemeButton();
+        }
+        // Sync the button text on initial load and after every Blazor enhanced
+        // navigation (the button gets re-rendered, so we need to re-sync).
+        document.addEventListener('DOMContentLoaded', syncThemeButton);
+        document.addEventListener('enhancedload', syncThemeButton);
+    </script>
 </head>
 
 <body>

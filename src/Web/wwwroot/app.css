@@ -1,56 +1,249 @@
+/* =========================================================================
+   ERP.Satisfactory — FICSIT-inspired theme (dark by default, light toggle).
+   Built on Bootstrap 5's data-bs-theme switch. CSS custom properties are
+   the single source of truth; everything below them is an override.
+   ========================================================================= */
+
+:root,
+[data-bs-theme="dark"] {
+    /* FICSIT brand-ish palette. */
+    --fx-orange:        #FA9549;
+    --fx-orange-bright: #FFB070;
+    --fx-orange-dim:    #C77437;
+    --fx-yellow:        #FFC53D;
+    --fx-caution:       #F2A93B;
+
+    /* Dark surfaces. */
+    --fx-bg:            #1B1B1F;
+    --fx-bg-elevated:   #26262B;
+    --fx-bg-input:      #2F2F35;
+    --fx-border:        #3A3A40;
+    --fx-border-soft:   #2F2F35;
+
+    /* Text. */
+    --fx-text:          #E8E8EB;
+    --fx-text-muted:    #9A9AA0;
+    --fx-text-strong:   #FFFFFF;
+
+    /* Status. */
+    --fx-success:       #5FC97C;
+    --fx-warning:       var(--fx-caution);
+    --fx-danger:        #E5604A;
+    --fx-info:          #5FB0C9;
+
+    /* Bootstrap variable overrides. */
+    --bs-body-bg:       var(--fx-bg);
+    --bs-body-color:    var(--fx-text);
+    --bs-primary:       var(--fx-orange);
+    --bs-primary-rgb:   250, 149, 73;
+    --bs-link-color:    var(--fx-orange-bright);
+    --bs-link-hover-color: var(--fx-yellow);
+    --bs-border-color:  var(--fx-border);
+    --bs-secondary-color: var(--fx-text-muted);
+    --bs-tertiary-color:  var(--fx-text-muted);
+}
+
+[data-bs-theme="light"] {
+    --fx-bg:            #F4F0E8;       /* warm off-white, easier on the eyes than pure white */
+    --fx-bg-elevated:   #FFFFFF;
+    --fx-bg-input:      #FFFFFF;
+    --fx-border:        #D8D0C0;
+    --fx-border-soft:   #E8E0D0;
+
+    --fx-text:          #1B1B1F;
+    --fx-text-muted:    #6A6A70;
+    --fx-text-strong:   #000000;
+
+    --bs-body-bg:       var(--fx-bg);
+    --bs-body-color:    var(--fx-text);
+    --bs-link-color:    var(--fx-orange-dim);
+    --bs-link-hover-color: var(--fx-orange);
+    --bs-border-color:  var(--fx-border);
+    --bs-secondary-color: var(--fx-text-muted);
+}
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
 }
 
+/* Headings sit on a tighter, slightly condensed feel. */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--fx-text-strong);
+    letter-spacing: -0.01em;
+}
+
+h1 {
+    font-weight: 600;
+    border-bottom: 2px solid var(--fx-orange);
+    padding-bottom: 0.4rem;
+    margin-bottom: 1rem;
+    display: inline-block;
+}
+
+/* Links. */
 a, .btn-link {
-    color: #006bb7;
+    color: var(--bs-link-color);
+    text-decoration: none;
+}
+a:hover, .btn-link:hover {
+    color: var(--bs-link-hover-color);
+    text-decoration: underline;
 }
 
+/* Primary button = FICSIT orange. */
 .btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: var(--fx-orange);
+    border-color: var(--fx-orange-dim);
+    color: #1B1B1F;
+    font-weight: 500;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--fx-orange-bright);
+    border-color: var(--fx-orange);
+    color: #1B1B1F;
+}
+.btn-primary:disabled {
+    background-color: var(--fx-orange-dim);
+    border-color: var(--fx-orange-dim);
+    color: rgba(27, 27, 31, 0.6);
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+/* Focus rings — orange, not blue. */
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus,
+.form-control:focus, .form-select:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(250, 149, 73, 0.35) !important;
+    border-color: var(--fx-orange) !important;
 }
 
-.content {
-    padding-top: 1.1rem;
+/* Form controls. */
+.form-control, .form-select {
+    background-color: var(--fx-bg-input);
+    border-color: var(--fx-border);
+    color: var(--fx-text);
+}
+.form-control::placeholder { color: var(--fx-text-muted); }
+.form-control:focus, .form-select:focus {
+    background-color: var(--fx-bg-input);
+    color: var(--fx-text);
+}
+.form-text { color: var(--fx-text-muted); }
+
+/* Cards. */
+.card {
+    background-color: var(--fx-bg-elevated);
+    border-color: var(--fx-border);
+}
+.card-title {
+    color: var(--fx-orange);
+    font-weight: 600;
 }
 
-h1:focus {
-    outline: none;
+/* Tables. */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--fx-text);
+    --bs-table-border-color: var(--fx-border-soft);
+    --bs-table-hover-bg: rgba(250, 149, 73, 0.06);
+    --bs-table-hover-color: var(--fx-text);
+}
+.table > thead {
+    color: var(--fx-text-muted);
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--fx-orange-dim);
+}
+.table code {
+    color: var(--fx-text);
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+/* Inline code chips — used heavily on the factory state page. */
+code {
+    color: var(--fx-orange-bright);
+    background-color: rgba(250, 149, 73, 0.08);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.9em;
 }
 
-.invalid {
-    outline: 1px solid #e52430;
+/* Alerts — FICSIT-style banner stripes. */
+.alert {
+    background-color: var(--fx-bg-elevated);
+    border: 1px solid var(--fx-border);
+    border-left-width: 4px;
+    color: var(--fx-text);
+}
+.alert-success { border-left-color: var(--fx-success); }
+.alert-success strong { color: var(--fx-success); }
+.alert-warning { border-left-color: var(--fx-warning); }
+.alert-warning strong { color: var(--fx-warning); }
+.alert-danger  { border-left-color: var(--fx-danger);  }
+.alert-danger strong  { color: var(--fx-danger); }
+.alert-secondary { border-left-color: var(--fx-text-muted); }
+.alert-info    { border-left-color: var(--fx-info);    }
+.alert-info strong    { color: var(--fx-info); }
+
+/* Status text helpers. */
+.text-success { color: var(--fx-success) !important; }
+.text-danger  { color: var(--fx-danger)  !important; }
+.text-muted   { color: var(--fx-text-muted) !important; }
+
+/* "Lead" hero text on Home. */
+.lead {
+    color: var(--fx-text-muted);
+    font-size: 1.15rem;
 }
 
-.validation-message {
-    color: #e52430;
+/* Display numbers (resource node count). */
+.display-6 {
+    color: var(--fx-orange);
+    font-weight: 600;
 }
 
+/* Validation feedback — keep red but our shade. */
+.valid.modified:not([type=checkbox]) { outline: 1px solid var(--fx-success); }
+.invalid { outline: 1px solid var(--fx-danger); }
+.validation-message { color: var(--fx-danger); }
+
+.content { padding-top: 1.1rem; }
+h1:focus { outline: none; }
+
+/* Theme toggle button. */
+.theme-toggle {
+    background: transparent;
+    border: 1px solid var(--fx-border);
+    color: var(--fx-text);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    line-height: 1.4;
+}
+.theme-toggle:hover {
+    border-color: var(--fx-orange);
+    color: var(--fx-orange);
+}
+
+/* Blazor error UI — keep visible, themed. */
 .blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
-    color: white;
+    background: var(--fx-danger);
+    padding: 1rem;
+    color: #1B1B1F;
+    font-weight: 500;
+}
+.blazor-error-boundary::after {
+    content: "An error has occurred.";
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
-
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+.form-floating > .form-control-plaintext::placeholder,
+.form-floating > .form-control::placeholder {
     color: var(--bs-secondary-color);
     text-align: end;
 }
-
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+.form-floating > .form-control-plaintext:focus::placeholder,
+.form-floating > .form-control:focus::placeholder {
     text-align: start;
 }

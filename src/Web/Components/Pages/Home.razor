@@ -1,7 +1,50 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>ERP.Satisfactory</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>ERP.Satisfactory</h1>
+<p class="lead">An ERP-style production planner for the game <em>Satisfactory</em>.</p>
 
-Welcome to your new app.
+<p>Plan a factory from the inputs you have and the outputs you need. The planner walks the recipe graph, scales it
+    to your target rates, and tells you exactly what to build — and where your bottlenecks are.</p>
+
+<div class="row mt-4 g-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <span class="bi bi-diagram-3-fill me-1" aria-hidden="true"></span> Planner
+                </h5>
+                <p class="card-text">Define production targets and the resources you already have. Get a step-by-step
+                    plan with building counts and missing inputs flagged.</p>
+                <a class="btn btn-primary btn-sm" href="planner">Open planner</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <span class="bi bi-building-fill-gear me-1" aria-hidden="true"></span> Factory state
+                </h5>
+                <p class="card-text">Ingest a Satisfactory <code>.sav</code> file and see exactly what's placed in
+                    your world — miners, smelters, belts, generators, resource nodes.</p>
+                <a class="btn btn-primary btn-sm" href="factory/ingest">Open factory state</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <span class="bi bi-gear-fill me-1" aria-hidden="true"></span> Settings
+                </h5>
+                <p class="card-text">Configure the path to your game's <code>Docs.json</code> catalogue. The planner
+                    can't run without it.</p>
+                <a class="btn btn-primary btn-sm" href="settings">Open settings</a>
+            </div>
+        </div>
+    </div>
+</div>

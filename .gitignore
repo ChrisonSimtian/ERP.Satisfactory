@@ -40,3 +40,9 @@ secrets.json
 
 # Node
 node_modules/
+
+# Playwright MCP working artifacts (screenshots, console logs, snapshots)
+.playwright-mcp/
+*-baseline-*.png
+baseline-*.png
+themed-*.png
