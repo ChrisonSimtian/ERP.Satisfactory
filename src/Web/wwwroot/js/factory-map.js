@@ -52,7 +52,7 @@ export async function initialize(element, featureCollection) {
         preferCanvas: true, // canvas renderer is faster for many markers
     });
 
-    addTopographicBackdrop(featureCollection);
+    addBackdrop(featureCollection);
     categoryLayers = buildCategoryLayers(featureCollection);
 
     const bounds = computeBounds(featureCollection.features);
@@ -191,22 +191,69 @@ function buildCategoryLayers(featureCollection) {
 }
 
 // -------------------------------------------------------------------------
-// Topographic backdrop
+// Backdrops
 //
-// Per ADR-0013 we can't ship Coffee Stain's terrain assets. Instead we
-// build a procedural heightfield from the only public terrain samples we
-// have — the Z coordinates of every resource node in the save (~684
-// samples across an 8 km × 7 km world).
+// Several user-selectable options (ADR-0015):
+// - terrain / biome / water: wiki-sourced game maps from
+//   /lib/maps/{terrain.jpg, biome.jpg, water.png}
+// - procedural: IDW heightfield from resource-node Z samples
+//   (kept as a fallback for modded maps or users who prefer it)
+// - none: no backdrop, dark canvas only
 //
-// Pipeline: IDW interpolation on a coarse 192×192 grid → elevation
-// colormap (deep water → shallow → sand → grass → forest → rock → snow) →
-// simple hillshading from a NW light → render to a canvas → attach as a
-// Leaflet ImageOverlay covering the world bounds.
-//
-// Quality is approximate: 684 samples across the world averages ~80 m
-// between samples, so the result is a smooth low-frequency surface, not a
-// pixel-accurate map. Good enough as a recognisable backdrop.
+// Selection is persisted in localStorage under 'erp-map-backdrop'.
+// Default: 'terrain'.
 // -------------------------------------------------------------------------
+
+const MAP_BACKDROPS = {
+    'terrain': { kind: 'image', src: '/lib/maps/terrain.jpg', label: 'Terrain (wiki)' },
+    'biome':   { kind: 'image', src: '/lib/maps/biome.jpg',   label: 'Biome (wiki)' },
+    'water':   { kind: 'image', src: '/lib/maps/water.png',   label: 'Water (wiki)' },
+    'procedural': { kind: 'procedural', label: 'Procedural (from save data)' },
+    'none':    { kind: 'none', label: 'None (dark canvas)' },
+};
+const DEFAULT_BACKDROP = 'terrain';
+
+function readBackdropChoice() {
+    try {
+        const saved = localStorage.getItem('erp-map-backdrop');
+        if (saved && MAP_BACKDROPS[saved]) return saved;
+    } catch (_) { /* localStorage may be unavailable */ }
+    return DEFAULT_BACKDROP;
+}
+
+function addBackdrop(featureCollection) {
+    const choice = readBackdropChoice();
+    const backdrop = MAP_BACKDROPS[choice];
+    if (!backdrop || backdrop.kind === 'none') return;
+
+    if (backdrop.kind === 'image') {
+        addImageBackdrop(featureCollection, backdrop.src);
+        return;
+    }
+    if (backdrop.kind === 'procedural') {
+        addTopographicBackdrop(featureCollection);
+        return;
+    }
+}
+
+function addImageBackdrop(featureCollection, imageSrc) {
+    const samples = collectElevationSamples(featureCollection);
+    // Use the same padded resource-node extent as the procedural backdrop
+    // so markers align with the image. Wiki maps cover (approximately) the
+    // playable world, which is what the resource nodes inhabit.
+    const ext = samples.length >= 3
+        ? computeUnrealExtent(samples, 0.15)
+        : { minX: -400000, maxX: 400000, minY: -400000, maxY: 400000 };
+
+    const sw = unrealToLatLng(ext.minX, ext.maxY);
+    const ne = unrealToLatLng(ext.maxX, ext.minY);
+    backdropLayer = L.imageOverlay(imageSrc, [sw, ne], {
+        interactive: false,
+        opacity: 1.0,
+        className: 'fx-map-backdrop',
+    });
+    backdropLayer.addTo(map);
+}
 
 function addTopographicBackdrop(featureCollection) {
     const samples = collectElevationSamples(featureCollection);
