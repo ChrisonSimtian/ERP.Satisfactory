@@ -21,10 +21,15 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout (with submodules)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+        # `submodules: recursive` would normally do it, but .gitmodules pins
+        # vendor/SatisfactorySaveNet with `update = none` (so it doesn't
+        # auto-change on local branch switches). Init explicitly in the next
+        # step instead.
+
+      - name: Initialize vendored SatisfactorySaveNet submodule
+        run: git -c submodule.vendor/SatisfactorySaveNet.update=checkout submodule update --init --recursive
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
