@@ -33,6 +33,6 @@
     "command": "pwsh -NoProfile -Command '$input | & (Get-ChildItem $HOME/.claude/plugins/cache/myfoodbag/mfb-statusline/*/statusline-command.ps1 | Select-Object -Last 1)'"
   },
   "enabledPlugins": {
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": false
   }
 }

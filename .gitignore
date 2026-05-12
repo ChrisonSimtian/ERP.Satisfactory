@@ -45,14 +45,7 @@ node_modules/
 
 # Playwright MCP working artifacts (screenshots, console logs, snapshots)
 .playwright-mcp/
-*-baseline-*.png
-baseline-*.png
-themed-*.png
-bespoke-*.png
-map-*.png
-35-*.png
-aspire-*.png
-topo-*.png
+test/ui-tests/
 
 # Local reference assets (user-only, not for redistribution)
 .assets/
