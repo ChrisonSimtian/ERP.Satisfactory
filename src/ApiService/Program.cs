@@ -35,6 +35,37 @@ app.MapGet("/catalog/items", (ICatalogProvider catalog) =>
         .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
         .Select(i => new ItemDto(i.Id.Value, i.Name)));
 
+app.MapGet("/catalog/recipes", (ICatalogProvider catalog) =>
+{
+    // Per-minute amounts mirror what /plan returns and what the planner UI displays —
+    // raw per-cycle counts on the wire would force every consumer to multiply by
+    // 60/duration. Recipes with zero duration would be a parser bug, but guard anyway.
+    AmountDto ToPerMinute(ItemAmount a, TimeSpan duration) =>
+        new(a.Item.Value,
+            catalog.FindItem(a.Item)?.Name ?? a.Item.Value,
+            duration.TotalSeconds > 0
+                ? Math.Round(a.Quantity * 60m / (decimal)duration.TotalSeconds, 4)
+                : a.Quantity);
+
+    return catalog.Recipes
+        .OrderBy(r => r.IsAlternate)
+        .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+        .Select(r =>
+        {
+            var building = catalog.FindBuilding(r.Building);
+            return new RecipeView(
+                r.Id.Value,
+                r.Name,
+                r.Building.Value,
+                building?.Name ?? r.Building.Value,
+                building?.BasePowerMw ?? 0,
+                r.IsAlternate,
+                r.Duration.TotalSeconds,
+                r.Inputs.Select(i => ToPerMinute(i, r.Duration)).ToList(),
+                r.Outputs.Select(o => ToPerMinute(o, r.Duration)).ToList());
+        });
+});
+
 app.MapGet("/catalogue/status", (ICatalogProvider catalog) => catalog.GetStatus());
 
 app.MapPost("/catalogue/configure", (ConfigureCatalogueRequest request, ICatalogProvider catalog) =>
@@ -124,6 +155,17 @@ app.MapDefaultEndpoints();
 app.Run();
 
 public sealed record ItemDto(string Id, string Name);
+
+public sealed record RecipeView(
+    string Id,
+    string Name,
+    string BuildingId,
+    string BuildingName,
+    double BuildingPowerMw,
+    bool IsAlternate,
+    double DurationSeconds,
+    IReadOnlyList<AmountDto> InputsPerMinute,
+    IReadOnlyList<AmountDto> OutputsPerMinute);
 
 public sealed record ConfigureCatalogueRequest(string DocsPath);
 

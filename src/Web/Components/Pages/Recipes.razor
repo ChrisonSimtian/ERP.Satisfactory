@@ -1,0 +1,134 @@
+@page "/recipes"
+@inject PlannerApiClient Api
+
+<PageTitle>Recipes</PageTitle>
+
+<h1>Recipe Catalogue</h1>
+
+<p>Every recipe parsed from your <code>Docs.json</code> — base and alternates. Throughputs are normalised to items per minute at 100% clock speed.</p>
+
+@if (status is { IsLoaded: false })
+{
+    <div class="alert alert-warning">
+        No catalogue loaded yet. <a href="settings">Point the app at your <code>Docs.json</code> in Settings</a> before browsing recipes.
+    </div>
+}
+else if (recipes is null)
+{
+    <p><em>Loading recipes...</em></p>
+}
+else
+{
+    <MudDataGrid T="RecipeView"
+                 Items="recipes"
+                 QuickFilter="@_quickFilter"
+                 Hover="true"
+                 Striped="true"
+                 Dense="true"
+                 Filterable="true"
+                 SortMode="SortMode.Multiple"
+                 FixedHeader="true"
+                 Height="calc(100vh - 240px)"
+                 RowsPerPage="50"
+                 Class="fx-recipes-grid">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">@recipes.Length recipes (@recipes.Count(r => r.IsAlternate) alternates)</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="_search"
+                          Placeholder="Search name, building, input or output…"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="150"
+                          Clearable="true"
+                          Style="max-width: 380px;" />
+        </ToolBarContent>
+
+        <Columns>
+            <PropertyColumn Property="r => r.Name" Title="Recipe" />
+            <TemplateColumn Title="Alt" SortBy="r => r.IsAlternate ? 1 : 0" Filterable="false">
+                <CellTemplate>
+                    @if (context.Item.IsAlternate)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">ALT</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="r => r.BuildingName" Title="Building" Grouping="false" />
+            <TemplateColumn Title="Inputs / min" Sortable="false" Filterable="false">
+                <CellTemplate>
+                    <div class="recipe-amounts">
+                        @foreach (var a in context.Item.InputsPerMinute)
+                        {
+                            <span class="recipe-amount" title="@a.ItemName">
+                                <img src="/assets/icons/items/@(a.ItemId).png"
+                                     onerror="this.style.visibility='hidden'"
+                                     alt="" />
+                                <span class="recipe-amount-text">@FormatRate(a.ItemsPerMinute) @a.ItemName</span>
+                            </span>
+                        }
+                    </div>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Outputs / min" Sortable="false" Filterable="false">
+                <CellTemplate>
+                    <div class="recipe-amounts">
+                        @foreach (var a in context.Item.OutputsPerMinute)
+                        {
+                            <span class="recipe-amount" title="@a.ItemName">
+                                <img src="/assets/icons/items/@(a.ItemId).png"
+                                     onerror="this.style.visibility='hidden'"
+                                     alt="" />
+                                <span class="recipe-amount-text">@FormatRate(a.ItemsPerMinute) @a.ItemName</span>
+                            </span>
+                        }
+                    </div>
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="r => r.DurationSeconds" Title="Cycle (s)" Format="0.##" />
+            <PropertyColumn Property="r => r.BuildingPowerMw" Title="Power (MW)" Format="0.##" />
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="RecipeView" />
+        </PagerContent>
+
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4">No recipes match the current search.</MudText>
+        </NoRecordsContent>
+    </MudDataGrid>
+}
+
+@code {
+    private CatalogueStatusView? status;
+    private RecipeView[]? recipes;
+    private string? _search;
+
+    private Func<RecipeView, bool> _quickFilter => r =>
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        var q = _search.Trim();
+        return r.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || r.BuildingName.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || r.InputsPerMinute.Any(a => a.ItemName.Contains(q, StringComparison.OrdinalIgnoreCase))
+            || r.OutputsPerMinute.Any(a => a.ItemName.Contains(q, StringComparison.OrdinalIgnoreCase));
+    };
+
+    private static string FormatRate(decimal rate) =>
+        rate == Math.Floor(rate) ? rate.ToString("0") : rate.ToString("0.##");
+
+    protected override async Task OnInitializedAsync()
+    {
+        status = await Api.GetCatalogueStatusAsync();
+        if (status?.IsLoaded ?? false)
+        {
+            recipes = await Api.GetRecipesAsync();
+        }
+        else
+        {
+            recipes = [];
+        }
+    }
+}
