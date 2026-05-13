@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Web.styles.css"]" />
     <ImportMap />
@@ -32,7 +33,19 @@
             document.documentElement.setAttribute('data-bs-theme', next);
             try { localStorage.setItem('erp-theme', next); } catch (_) { }
             syncThemeButton();
+            // Notify MudBlazor's IsDarkMode binding (wired up in MainLayout).
+            window.dispatchEvent(new CustomEvent('erp-theme-change', { detail: next }));
         }
+        // Layout components subscribe to theme changes via this bridge —
+        // pass a DotNetObjectReference, get callbacks on every toggle.
+        window.erpRegisterThemeChange = function (dotNetRef) {
+            var handler = function (e) { dotNetRef.invokeMethodAsync('OnThemeChanged', e.detail); };
+            window.addEventListener('erp-theme-change', handler);
+            return handler;
+        };
+        window.erpReadInitialTheme = function () {
+            return document.documentElement.getAttribute('data-bs-theme') || 'dark';
+        };
         // Sync the button text on initial load and after every Blazor enhanced
         // navigation (the button gets re-rendered, so we need to re-sync).
         document.addEventListener('DOMContentLoaded', syncThemeButton);
@@ -41,8 +54,14 @@
 </head>
 
 <body>
-    <Routes />
+    @* InteractiveServer at the Routes level so the whole app — layout + pages — shares
+       one interactive render tree. MudBlazor's providers live in MainLayout and must be
+       in the same tree as the components that consume them (MudAutocomplete, etc.).
+       Setting @rendermode on <RouteView> would try to JSON-serialize RouteData.PageType
+       (a System.Type) across the SSR boundary, which is unsupported. *@
+    <Routes @rendermode="InteractiveServer" />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 
 </html>

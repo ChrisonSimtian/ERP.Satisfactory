@@ -26,16 +26,34 @@ else
             <h3>Sources <small class="text-muted">(items/min available)</small></h3>
             @foreach (var row in sources)
             {
-                <div class="d-flex gap-2 mb-2">
-                    <select class="form-select" @bind="row.ItemId">
-                        <option value="">-- pick item --</option>
-                        @foreach (var item in items)
-                        {
-                            <option value="@item.Id">@item.Name</option>
-                        }
-                    </select>
+                <div class="d-flex gap-2 mb-2 align-items-center">
+                    <div class="flex-grow-1">
+                        <MudAutocomplete T="CatalogItem"
+                                         Value="row.Item"
+                                         ValueChanged="@(i => row.Item = i)"
+                                         SearchFunc="@SearchItems"
+                                         ToStringFunc="@(i => i?.Name ?? string.Empty)"
+                                         Placeholder="Pick item"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Dense="true"
+                                         Clearable="true"
+                                         CoerceText="true"
+                                         CoerceValue="false"
+                                         data-row-role="source">
+                            <ItemTemplate Context="i">
+                                <div class="d-flex align-items-center gap-2">
+                                    <img src="/assets/icons/items/@(i.Id).png"
+                                         onerror="this.style.visibility='hidden'"
+                                         style="width: 24px; height: 24px; object-fit: contain; flex: 0 0 24px;"
+                                         alt="" />
+                                    <span>@i.Name</span>
+                                </div>
+                            </ItemTemplate>
+                        </MudAutocomplete>
+                    </div>
                     <input type="number" class="form-control" min="0" step="1" placeholder="items / min"
-                           @bind="row.ItemsPerMinute" />
+                           style="max-width: 10rem;" @bind="row.ItemsPerMinute" />
                     <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveSource(row)">&times;</button>
                 </div>
             }
@@ -46,16 +64,34 @@ else
             <h3>Sinks <small class="text-muted">(items/min wanted)</small></h3>
             @foreach (var row in sinks)
             {
-                <div class="d-flex gap-2 mb-2">
-                    <select class="form-select" @bind="row.ItemId">
-                        <option value="">-- pick item --</option>
-                        @foreach (var item in items)
-                        {
-                            <option value="@item.Id">@item.Name</option>
-                        }
-                    </select>
+                <div class="d-flex gap-2 mb-2 align-items-center">
+                    <div class="flex-grow-1">
+                        <MudAutocomplete T="CatalogItem"
+                                         Value="row.Item"
+                                         ValueChanged="@(i => row.Item = i)"
+                                         SearchFunc="@SearchItems"
+                                         ToStringFunc="@(i => i?.Name ?? string.Empty)"
+                                         Placeholder="Pick item"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Dense="true"
+                                         Clearable="true"
+                                         CoerceText="true"
+                                         CoerceValue="false"
+                                         data-row-role="sink">
+                            <ItemTemplate Context="i">
+                                <div class="d-flex align-items-center gap-2">
+                                    <img src="/assets/icons/items/@(i.Id).png"
+                                         onerror="this.style.visibility='hidden'"
+                                         style="width: 24px; height: 24px; object-fit: contain; flex: 0 0 24px;"
+                                         alt="" />
+                                    <span>@i.Name</span>
+                                </div>
+                            </ItemTemplate>
+                        </MudAutocomplete>
+                    </div>
                     <input type="number" class="form-control" min="0" step="1" placeholder="items / min"
-                           @bind="row.ItemsPerMinute" />
+                           style="max-width: 10rem;" @bind="row.ItemsPerMinute" />
                     <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveSink(row)">&times;</button>
                 </div>
             }
@@ -161,8 +197,8 @@ else
         try
         {
             var request = new PlanRequest(
-                Targets:   sinks  .Where(r => !string.IsNullOrEmpty(r.ItemId)).Select(r => new TargetInput(r.ItemId!, r.ItemsPerMinute)).ToList(),
-                Available: sources.Where(r => !string.IsNullOrEmpty(r.ItemId)).Select(r => new AvailabilityInput(r.ItemId!, r.ItemsPerMinute)).ToList());
+                Targets:   sinks  .Where(r => r.Item is not null).Select(r => new TargetInput(r.Item!.Id, r.ItemsPerMinute)).ToList(),
+                Available: sources.Where(r => r.Item is not null).Select(r => new AvailabilityInput(r.Item!.Id, r.ItemsPerMinute)).ToList());
 
             if (request.Targets.Count == 0)
             {
@@ -182,9 +218,17 @@ else
         }
     }
 
+    private Task<IEnumerable<CatalogItem>> SearchItems(string? value, CancellationToken ct)
+    {
+        if (items is null) return Task.FromResult<IEnumerable<CatalogItem>>([]);
+        if (string.IsNullOrWhiteSpace(value)) return Task.FromResult<IEnumerable<CatalogItem>>(items);
+        var hits = items.Where(i => i.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(hits);
+    }
+
     private sealed class Row
     {
-        public string? ItemId { get; set; }
+        public CatalogItem? Item { get; set; }
         public decimal ItemsPerMinute { get; set; }
     }
 }
