@@ -36,3 +36,4 @@ ADRs are numbered sequentially starting at `0001`. The filename is
 | [0013](0013-map-visualiser-approach.md) | Map visualiser approach | Proposed |
 | [0014](0014-pure-csharp-save-ingestion-via-fork.md) | Pure-C# .sav ingestion via SatisfactorySaveNet fork | Accepted |
 | [0015](0015-map-backdrops-fair-use.md) | Map backdrops sourced from wiki under fair use | Accepted (amends [0013](0013-map-visualiser-approach.md)) |
+| [0016](0016-external-assets-drop-folder.md) | External game-derived assets via the `.assets/` drop folder | Accepted (extends [0015](0015-map-backdrops-fair-use.md)) |

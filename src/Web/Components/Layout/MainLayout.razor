@@ -1,4 +1,11 @@
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<MudThemeProvider Theme="FicsitTheme.Instance" IsDarkMode="isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
 <div class="page">
     <div class="sidebar">
@@ -26,3 +33,40 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private bool isDarkMode = true;
+    private DotNetObjectReference<MainLayout>? selfRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        selfRef = DotNetObjectReference.Create(this);
+        var initial = await JS.InvokeAsync<string>("erpReadInitialTheme");
+        var nextDark = !string.Equals(initial, "light", StringComparison.Ordinal);
+        await JS.InvokeVoidAsync("erpRegisterThemeChange", selfRef);
+        if (nextDark != isDarkMode)
+        {
+            isDarkMode = nextDark;
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public Task OnThemeChanged(string theme)
+    {
+        var nextDark = !string.Equals(theme, "light", StringComparison.Ordinal);
+        if (nextDark != isDarkMode)
+        {
+            isDarkMode = nextDark;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

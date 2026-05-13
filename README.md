@@ -68,6 +68,28 @@ The typical Steam Windows location is:
 C:\Program Files (x86)\Steam\steamapps\common\Satisfactory\CommunityResources\Docs
 ```
 
+## Item icons and other external assets
+
+Per [ADR-0016](docs/adr/0016-external-assets-drop-folder.md), per-item icons
+and the wiki map-backdrop source files live in a gitignored `.assets/` folder
+at the repo root, served at `/assets/*` by the Web project at runtime. A
+fresh clone has no icons — the Planner picker degrades to text-only until
+they're downloaded.
+
+To populate `.assets/`:
+
+```powershell
+# 1. Start the app (the script reads /catalog/items from the running ApiService).
+dotnet run --project src/AppHost
+
+# 2. In another shell:
+pwsh tools/Update-Assets.ps1
+```
+
+The script pulls icons from [satisfactory.wiki.gg](https://satisfactory.wiki.gg/)
+with a polite 1 req/s rate-limit. Existing files are skipped — pass `-Force`
+to re-download (e.g. after a game patch changed icon art).
+
 ## Live factory state
 
 The **Factory state** page (`/factory/ingest`) ingests a Satisfactory `.sav` file
