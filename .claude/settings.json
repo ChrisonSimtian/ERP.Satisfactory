@@ -24,6 +24,7 @@
       "Bash(git commit*)",
       "Bash(gh issue*)",
       "Bash(gh*)",
+      "Bash(curl*)",
       "WebFetch(domain:satisfactory.wiki.gg)",
       "WebFetch(domain:satisfactorygame.com)"
     ]
