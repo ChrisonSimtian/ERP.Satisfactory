@@ -13,38 +13,20 @@
     <div class="brand-sub">PRODUCTION SUITE</div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="fx-icon fx-icon-home" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="planner">
-                <span class="fx-icon fx-icon-wrench" aria-hidden="true"></span> Planner
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="factory/ingest">
-                <span class="fx-icon fx-icon-gear" aria-hidden="true"></span> Factory state
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="factory/map">
-                <span class="fx-icon fx-icon-map" aria-hidden="true"></span> Factory map
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="fx-icon fx-icon-screwdriver" aria-hidden="true"></span> Settings
-            </NavLink>
-        </div>
-    </nav>
-</div>
+<MudNavMenu Class="fx-nav">
+    <MudNavLink Href="" Match="NavLinkMatch.All">
+        <span class="fx-icon fx-icon-inline fx-icon-home" aria-hidden="true"></span> Home
+    </MudNavLink>
+    <MudNavLink Href="planner">
+        <span class="fx-icon fx-icon-inline fx-icon-wrench" aria-hidden="true"></span> Planner
+    </MudNavLink>
+    <MudNavLink Href="factory/ingest">
+        <span class="fx-icon fx-icon-inline fx-icon-gear" aria-hidden="true"></span> Factory state
+    </MudNavLink>
+    <MudNavLink Href="factory/map">
+        <span class="fx-icon fx-icon-inline fx-icon-map" aria-hidden="true"></span> Factory map
+    </MudNavLink>
+    <MudNavLink Href="settings">
+        <span class="fx-icon fx-icon-inline fx-icon-screwdriver" aria-hidden="true"></span> Settings
+    </MudNavLink>
+</MudNavMenu>

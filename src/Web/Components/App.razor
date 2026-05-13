@@ -13,7 +13,8 @@
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
     <script>
-        // Apply persisted theme before paint to avoid a flash.
+        // Apply persisted theme before first paint to avoid a flash. Blazor (MainLayout)
+        // takes over as soon as the circuit boots — this is just the pre-hydration nudge.
         (function () {
             try {
                 var saved = localStorage.getItem('erp-theme');
@@ -22,34 +23,17 @@
                 }
             } catch (_) { /* localStorage may be unavailable */ }
         })();
-        function syncThemeButton() {
-            var current = document.documentElement.getAttribute('data-bs-theme') || 'dark';
-            var btn = document.getElementById('theme-toggle-btn');
-            if (btn) btn.textContent = current === 'dark' ? '☀ Light' : '☾ Dark';
-        }
-        function toggleTheme() {
-            var current = document.documentElement.getAttribute('data-bs-theme') || 'dark';
-            var next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-bs-theme', next);
-            try { localStorage.setItem('erp-theme', next); } catch (_) { }
-            syncThemeButton();
-            // Notify MudBlazor's IsDarkMode binding (wired up in MainLayout).
-            window.dispatchEvent(new CustomEvent('erp-theme-change', { detail: next }));
-        }
-        // Layout components subscribe to theme changes via this bridge —
-        // pass a DotNetObjectReference, get callbacks on every toggle.
-        window.erpRegisterThemeChange = function (dotNetRef) {
-            var handler = function (e) { dotNetRef.invokeMethodAsync('OnThemeChanged', e.detail); };
-            window.addEventListener('erp-theme-change', handler);
-            return handler;
+        // Two-way bridge between MudBlazor's IsDarkMode (C# source of truth) and
+        // Bootstrap's data-bs-theme attribute (still needed during the phased migration
+        // for pages that haven't moved to MudBlazor primitives yet). MainLayout calls
+        // erpSetTheme on toggle and erpReadInitialTheme once on init.
+        window.erpSetTheme = function (theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            try { localStorage.setItem('erp-theme', theme); } catch (_) { }
         };
         window.erpReadInitialTheme = function () {
             return document.documentElement.getAttribute('data-bs-theme') || 'dark';
         };
-        // Sync the button text on initial load and after every Blazor enhanced
-        // navigation (the button gets re-rendered, so we need to re-sync).
-        document.addEventListener('DOMContentLoaded', syncThemeButton);
-        document.addEventListener('enhancedload', syncThemeButton);
     </script>
 </head>
 
