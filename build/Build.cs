@@ -89,7 +89,7 @@ class Build : NukeBuild
         });
 
     Target Test => _ => _
-        .Description("Runs all xUnit test projects, emits TRX results to artifacts/test-results/.")
+        .Description("Runs ALL xUnit test projects including Web.UiTests (drives Chromium via Playwright). Use locally; CI uses TestNoUi instead.")
         .DependsOn(Compile)
         .DependsOn(InstallPlaywrightBrowsers)
         .Executes(() =>
@@ -104,6 +104,28 @@ class Build : NukeBuild
                 .AddLoggers("trx;LogFilePrefix=test")
                 .AddLoggers("console;verbosity=normal"));
             Log.Information("TRX results written to {Dir}", TestResultsDirectory);
+        });
+
+    Target TestNoUi => _ => _
+        .Description("Runs xUnit tests excluding Web.UiTests. Skips the Playwright browser install + system-deps that the free GitHub Actions runner can't comfortably carry.")
+        .DependsOn(Compile)
+        .Executes(() =>
+        {
+            TestResultsDirectory.CreateOrCleanDirectory();
+            // Filter by FullyQualifiedName — every test in Web.UiTests lives under the
+            // Web.UiTests namespace, so !~ Web.UiTests matches them all. The UiTests
+            // project still compiles but no tests run, so the AspireAppFixture (which
+            // calls Microsoft.Playwright.Program.Main on init) never executes.
+            DotNetTest(s => s
+                .SetProjectFile(Solution)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetResultsDirectory(TestResultsDirectory)
+                .AddLoggers("trx;LogFilePrefix=test")
+                .AddLoggers("console;verbosity=normal")
+                .SetFilter("FullyQualifiedName!~Web.UiTests"));
+            Log.Information("TRX results written to {Dir} (Web.UiTests excluded — run `./build.sh Test` locally to include them)", TestResultsDirectory);
         });
 
     Target ComputeVersion => _ => _
