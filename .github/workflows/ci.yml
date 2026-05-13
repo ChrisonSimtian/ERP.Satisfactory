@@ -77,8 +77,12 @@ jobs:
           dotnet-version: 8.0.x
           global-json-file: global.json
 
-      - name: Build & Test
-        run: ./build.sh Test
+      - name: Build & Test (no UI)
+        # Web.UiTests is excluded in CI — Playwright's --with-deps chromium
+        # install (sudo apt-get + ~150MB browser download) is too heavy for the
+        # free GitHub Actions runner. Run `./build.sh Test` locally to include
+        # the UI tests. Re-enabling on CI is a one-line change here.
+        run: ./build.sh TestNoUi
 
       - name: Upload TRX test results
         if: always()

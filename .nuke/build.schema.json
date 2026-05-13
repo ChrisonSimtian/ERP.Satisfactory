@@ -31,7 +31,8 @@
         "InstallPlaywrightBrowsers",
         "Release",
         "Restore",
-        "Test"
+        "Test",
+        "TestNoUi"
       ]
     },
     "Verbosity": {
