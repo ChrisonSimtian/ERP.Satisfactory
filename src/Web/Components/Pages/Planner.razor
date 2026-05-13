@@ -10,20 +10,20 @@
 
 @if (status is { IsLoaded: false })
 {
-    <div class="alert alert-warning">
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3">
         No catalogue loaded yet. <a href="settings">Point the app at your <code>Docs.json</code> in Settings</a> before planning.
-    </div>
+    </MudAlert>
 }
 
 @if (items is null)
 {
-    <p><em>Loading catalogue...</em></p>
+    <MudText><em>Loading catalogue...</em></MudText>
 }
 else
 {
-    <div class="row g-4">
-        <div class="col-md-6">
-            <h3>Sources <small class="text-muted">(items/min available)</small></h3>
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h5" Class="mb-2">Sources <MudText HtmlTag="span" Typo="Typo.caption" Color="Color.Default">(items/min available)</MudText></MudText>
             @foreach (var row in sources)
             {
                 <div class="d-flex gap-2 mb-2 align-items-center">
@@ -52,16 +52,29 @@ else
                             </ItemTemplate>
                         </MudAutocomplete>
                     </div>
-                    <input type="number" class="form-control" min="0" step="1" placeholder="items / min"
-                           style="max-width: 10rem;" @bind="row.ItemsPerMinute" />
-                    <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveSource(row)">&times;</button>
+                    <MudNumericField T="decimal" @bind-Value="row.ItemsPerMinute"
+                                     Min="0" Step="1m"
+                                     Placeholder="items / min"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     HideSpinButtons="false"
+                                     Style="max-width: 10rem;" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   Variant="Variant.Outlined"
+                                   OnClick="() => RemoveSource(row)"
+                                   title="Remove" />
                 </div>
             }
-            <button class="btn btn-outline-secondary" type="button" @onclick="AddSource">+ Add source</button>
-        </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="AddSource"
+                       StartIcon="@Icons.Material.Filled.Add">
+                Add source
+            </MudButton>
+        </MudItem>
 
-        <div class="col-md-6">
-            <h3>Sinks <small class="text-muted">(items/min wanted)</small></h3>
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h5" Class="mb-2">Sinks <MudText HtmlTag="span" Typo="Typo.caption" Color="Color.Default">(items/min wanted)</MudText></MudText>
             @foreach (var row in sinks)
             {
                 <div class="d-flex gap-2 mb-2 align-items-center">
@@ -90,31 +103,44 @@ else
                             </ItemTemplate>
                         </MudAutocomplete>
                     </div>
-                    <input type="number" class="form-control" min="0" step="1" placeholder="items / min"
-                           style="max-width: 10rem;" @bind="row.ItemsPerMinute" />
-                    <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveSink(row)">&times;</button>
+                    <MudNumericField T="decimal" @bind-Value="row.ItemsPerMinute"
+                                     Min="0" Step="1m"
+                                     Placeholder="items / min"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     HideSpinButtons="false"
+                                     Style="max-width: 10rem;" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   Variant="Variant.Outlined"
+                                   OnClick="() => RemoveSink(row)"
+                                   title="Remove" />
                 </div>
             }
-            <button class="btn btn-outline-secondary" type="button" @onclick="AddSink">+ Add sink</button>
-        </div>
-    </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="AddSink"
+                       StartIcon="@Icons.Material.Filled.Add">
+                Add sink
+            </MudButton>
+        </MudItem>
+    </MudGrid>
 
     <div class="mt-4">
-        <button class="btn btn-primary" type="button" @onclick="Compute" disabled="@isComputing">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Compute" Disabled="@isComputing">
             @(isComputing ? "Computing..." : "Compute plan")
-        </button>
+        </MudButton>
         @if (!string.IsNullOrEmpty(error))
         {
-            <span class="text-danger ms-3">@error</span>
+            <MudText HtmlTag="span" Color="Color.Error" Class="ms-3">@error</MudText>
         }
     </div>
 }
 
 @if (plan is not null)
 {
-    <hr />
+    <MudDivider Class="my-4" />
     <div class="d-flex align-items-center gap-2 mb-3">
-        <h2 class="mb-0">Plan</h2>
+        <MudText Typo="Typo.h4" Class="mb-0">Plan</MudText>
         @if (plan.IsFeasible)
         {
             <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.CheckCircle">Feasible</MudChip>
@@ -127,7 +153,7 @@ else
 
     @if (plan.Steps.Count == 0)
     {
-        <p><em>No production steps required (everything covered by sources, or no targets given).</em></p>
+        <MudText><em>No production steps required (everything covered by sources, or no targets given).</em></MudText>
     }
     else
     {
@@ -178,7 +204,7 @@ else
 
     @if (plan.RawInputsConsumed.Count > 0)
     {
-        <h3 class="mt-4">Raw inputs consumed (from sources)</h3>
+        <MudText Typo="Typo.h5" Class="mt-4 mb-2">Raw inputs consumed (from sources)</MudText>
         <div class="fx-amount-list">
             @foreach (var amount in plan.RawInputsConsumed)
             {
@@ -194,8 +220,8 @@ else
 
     @if (plan.MissingInputs.Count > 0)
     {
-        <h3 class="mt-4 text-danger">Missing inputs</h3>
-        <p class="text-muted mb-2"><small>No recipe and no source available.</small></p>
+        <MudText Typo="Typo.h5" Color="Color.Error" Class="mt-4 mb-1">Missing inputs</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Default" Class="d-block mb-2">No recipe and no source available.</MudText>
         <div class="fx-amount-list">
             @foreach (var amount in plan.MissingInputs)
             {
