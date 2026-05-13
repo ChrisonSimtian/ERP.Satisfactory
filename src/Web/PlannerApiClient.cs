@@ -7,6 +7,9 @@ public class PlannerApiClient(HttpClient httpClient)
     public async Task<CatalogItem[]> GetItemsAsync(CancellationToken ct = default) =>
         await httpClient.GetFromJsonAsync<CatalogItem[]>("/catalog/items", ct) ?? [];
 
+    public async Task<RecipeView[]> GetRecipesAsync(CancellationToken ct = default) =>
+        await httpClient.GetFromJsonAsync<RecipeView[]>("/catalog/recipes", ct) ?? [];
+
     public async Task<PlanResponse?> ComputePlanAsync(PlanRequest request, CancellationToken ct = default)
     {
         var response = await httpClient.PostAsJsonAsync("/plan", request, ct);
@@ -61,6 +64,17 @@ public class PlannerApiClient(HttpClient httpClient)
 }
 
 public sealed record CatalogItem(string Id, string Name);
+
+public sealed record RecipeView(
+    string Id,
+    string Name,
+    string BuildingId,
+    string BuildingName,
+    double BuildingPowerMw,
+    bool IsAlternate,
+    double DurationSeconds,
+    IReadOnlyList<AmountView> InputsPerMinute,
+    IReadOnlyList<AmountView> OutputsPerMinute);
 
 public sealed record TargetInput(string ItemId, decimal ItemsPerMinute);
 public sealed record AvailabilityInput(string ItemId, decimal ItemsPerMinute);
