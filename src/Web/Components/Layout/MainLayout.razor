@@ -1,32 +1,45 @@
 @inherits LayoutComponentBase
-@implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<MudThemeProvider Theme="FicsitTheme.Instance" IsDarkMode="isDarkMode" />
+<MudThemeProvider Theme="FicsitTheme.Instance" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<div class="page">
-    <div class="sidebar">
+<MudLayout Class="fx-layout">
+    <MudDrawer @bind-Open="_drawerOpen"
+               Variant="DrawerVariant.Responsive"
+               Anchor="Anchor.Left"
+               Elevation="0"
+               ClipMode="DrawerClipMode.Never"
+               Width="250px"
+               Breakpoint="Breakpoint.Sm"
+               Class="fx-drawer">
         <NavMenu />
-    </div>
+    </MudDrawer>
 
-    <main>
-        <div class="top-row">
-            <span class="status-strip" aria-hidden="true">SYSTEM ONLINE</span>
-            <button id="theme-toggle-btn" type="button" class="theme-toggle" onclick="toggleTheme()"
-                title="Toggle light / dark mode">
-                ☀ Light
-            </button>
-        </div>
+    <MudAppBar Elevation="0" Dense="true" Color="Color.Transparent" Class="fx-appbar">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)"
+                       Color="Color.Inherit"
+                       title="Toggle navigation"
+                       Class="fx-menu-toggle" />
+        <span class="status-strip" aria-hidden="true">SYSTEM ONLINE</span>
+        <MudSpacer />
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       OnClick="ToggleTheme"
+                       Color="Color.Inherit"
+                       title="Toggle light / dark mode"
+                       Class="fx-theme-toggle" />
+    </MudAppBar>
+
+    <MudMainContent Class="fx-main">
         <div class="hazard-tape thin" aria-hidden="true"></div>
-
         <article class="content px-4">
             @Body
         </article>
-    </main>
-</div>
+    </MudMainContent>
+</MudLayout>
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.
@@ -35,38 +48,29 @@
 </div>
 
 @code {
-    private bool isDarkMode = true;
-    private DotNetObjectReference<MainLayout>? selfRef;
+    private bool _isDarkMode = true;
+    private bool _drawerOpen = true;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        selfRef = DotNetObjectReference.Create(this);
+
+        // The pre-paint script in App.razor may have set data-bs-theme from localStorage
+        // before Blazor booted. Pick that up so MudBlazor's IsDarkMode matches.
         var initial = await JS.InvokeAsync<string>("erpReadInitialTheme");
-        var nextDark = !string.Equals(initial, "light", StringComparison.Ordinal);
-        await JS.InvokeVoidAsync("erpRegisterThemeChange", selfRef);
-        if (nextDark != isDarkMode)
+        var darkInitial = !string.Equals(initial, "light", StringComparison.Ordinal);
+        if (darkInitial != _isDarkMode)
         {
-            isDarkMode = nextDark;
+            _isDarkMode = darkInitial;
             StateHasChanged();
         }
     }
 
-    [JSInvokable]
-    public Task OnThemeChanged(string theme)
+    private async Task ToggleTheme()
     {
-        var nextDark = !string.Equals(theme, "light", StringComparison.Ordinal);
-        if (nextDark != isDarkMode)
-        {
-            isDarkMode = nextDark;
-            StateHasChanged();
-        }
-        return Task.CompletedTask;
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        selfRef?.Dispose();
-        return ValueTask.CompletedTask;
+        _isDarkMode = !_isDarkMode;
+        // One-way C# → DOM/localStorage. Bootstrap-themed pages still read data-bs-theme
+        // until they migrate off Bootstrap (Phase 3+).
+        await JS.InvokeVoidAsync("erpSetTheme", _isDarkMode ? "dark" : "light");
     }
 }

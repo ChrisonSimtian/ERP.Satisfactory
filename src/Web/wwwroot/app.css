@@ -516,3 +516,104 @@ h1:focus { outline: none; }
 .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* ------------------------------------------------------------------------
+   MudBlazor integration — Phase 2 of the migration. The framework's
+   primitives (.mud-drawer, .mud-nav-link, .mud-appbar, .mud-icon-button)
+   are restyled here to carry the FICSIT industrial aesthetic. Classes are
+   MudBlazor globals; the .fx-* modifier classes are applied in MainLayout
+   and NavMenu so the overrides only affect the app shell, not page-level
+   uses of the same primitives.
+   ------------------------------------------------------------------------ */
+
+/* MudLayout — let our app's grid + schematic backdrop show through. */
+.mud-layout.fx-layout {
+    background: transparent;
+}
+
+/* Sidebar drawer — same dark gradient the hand-rolled .sidebar used in
+   Phase 1. Stays dark even in light mode (FICSIT aesthetic is dark by
+   default; the brand reads better against dark surfaces). */
+.mud-drawer.fx-drawer {
+    background: linear-gradient(180deg, #0F0F14 0%, #1A1A21 50%, #261D14 100%) !important;
+    border-right: 1px solid var(--fx-border) !important;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+    color: #c4c4ca;
+    overflow: visible;
+}
+
+.mud-drawer.fx-drawer .mud-drawer-content {
+    background: transparent;
+}
+
+/* Faint vertical "rivet line" on the drawer's inner (right) edge. */
+.mud-drawer.fx-drawer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2px;
+    bottom: 0;
+    background-image: repeating-linear-gradient(
+        180deg,
+        transparent 0,
+        transparent 18px,
+        rgba(250, 149, 73, 0.35) 18px,
+        rgba(250, 149, 73, 0.35) 20px);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* App bar — translucent panel gradient under the SYSTEM ONLINE indicator
+   and theme toggle. Hazard tape lives just below in MudMainContent. */
+.mud-appbar.fx-appbar {
+    background: linear-gradient(180deg, var(--fx-bg-panel) 0%, var(--fx-bg) 100%) !important;
+    color: var(--fx-text) !important;
+    border-bottom: 1px solid var(--fx-border-soft);
+    backdrop-filter: none;
+}
+
+[data-bs-theme="light"] .mud-appbar.fx-appbar {
+    background: linear-gradient(180deg, #FAF6EC 0%, #F0EBE0 100%) !important;
+    color: var(--fx-text) !important;
+}
+
+/* Theme toggle — orange-tinted hover, no Material elevation. */
+.mud-icon-button.fx-theme-toggle {
+    color: var(--fx-text) !important;
+}
+
+.mud-icon-button.fx-theme-toggle:hover {
+    background-color: rgba(250, 149, 73, 0.12) !important;
+}
+
+/* Nav links — uppercase Bahnschrift, transparent left-bar that lights up
+   on hover or when the link is the active route. Mirrors the look the
+   hand-rolled .nav-item ::deep a rules carried in Phase 1. */
+.mud-nav-menu.fx-nav .mud-nav-link {
+    color: #c4c4ca;
+    border-left: 3px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: 'Bahnschrift', 'Segoe UI Variable', 'Segoe UI', sans-serif;
+    font-size: 0.88rem;
+    min-height: 2.6rem;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.mud-nav-menu.fx-nav .mud-nav-link:hover {
+    background-color: rgba(250, 149, 73, 0.08);
+    color: #ffffff;
+}
+
+/* MudNavLink applies both "active" and "mud-nav-link-active" when it
+   matches the current route — match either, so we don't depend on which
+   version of MudBlazor renders today. */
+.mud-nav-menu.fx-nav .mud-nav-link.active,
+.mud-nav-menu.fx-nav .mud-nav-link.mud-nav-link-active {
+    background: linear-gradient(90deg, rgba(250, 149, 73, 0.18) 0%, rgba(250, 149, 73, 0.04) 100%);
+    color: #FFB070;
+    border-left-color: #FA9549;
+    box-shadow: inset 0 0 0 1px rgba(250, 149, 73, 0.15);
+}
+
