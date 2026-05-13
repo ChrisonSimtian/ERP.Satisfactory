@@ -38,6 +38,15 @@ Windows: `./build.ps1 <Target>` or `build.cmd <Target>`. Mac/Linux: `./build.sh
 <Target>` (executable bit is tracked in git). Targets live in
 [`build/Build.cs`](build/Build.cs).
 
+UI tests (`test/Web/Web.UiTests`) drive a real browser via Playwright. `./build.sh
+Test` installs the required chromium build automatically — the
+`InstallPlaywrightBrowsers` target runs before `Test`. If you'd rather pre-install
+manually:
+
+```powershell
+pwsh test/Web/Web.UiTests/bin/Debug/net10.0/playwright.ps1 install chromium
+```
+
 ## Game catalogue
 
 The planner reads items, buildings, and recipes from the catalogue JSON shipped

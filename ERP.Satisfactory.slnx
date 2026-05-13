@@ -42,4 +42,8 @@
   <Folder Name="/test/Satisfactory/Save.Tests/">
     <Project Path="test/Satisfactory/Save.Tests/Satisfactory.Save.Tests.csproj" />
   </Folder>
+  <Folder Name="/test/Web/" />
+  <Folder Name="/test/Web/Web.UiTests/">
+    <Project Path="test/Web/Web.UiTests/Web.UiTests.csproj" />
+  </Folder>
 </Solution>

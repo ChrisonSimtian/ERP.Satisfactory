@@ -28,6 +28,7 @@
         "Compile",
         "ComputeVersion",
         "Format",
+        "InstallPlaywrightBrowsers",
         "Release",
         "Restore",
         "Test"

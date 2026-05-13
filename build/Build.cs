@@ -68,9 +68,30 @@ class Build : NukeBuild
             DotNet($"format \"{Solution.Path}\" --verify-no-changes --exclude vendor/");
         });
 
+    Target InstallPlaywrightBrowsers => _ => _
+        .Description("Installs Playwright browsers used by Web.UiTests. Idempotent — no-op if already cached.")
+        .DependsOn(Compile)
+        .Executes(() =>
+        {
+            // playwright.ps1 is emitted into the test project's output by Microsoft.Playwright.
+            var script = RootDirectory / "test" / "Web" / "Web.UiTests" / "bin" / Configuration / "net10.0" / "playwright.ps1";
+            if (!script.FileExists())
+            {
+                Log.Warning("playwright.ps1 not found at {Script} — skipping browser install. Did the test project build?", script);
+                return;
+            }
+
+            // --with-deps installs Linux system libs (libnss3 etc) needed by chromium; needs sudo on CI.
+            // On Windows/Mac the deps come from the OS — plain `install` is enough.
+            var args = EnvironmentInfo.IsLinux ? $"\"{script}\" install --with-deps chromium" : $"\"{script}\" install chromium";
+            var process = ProcessTasks.StartProcess("pwsh", args, workingDirectory: RootDirectory);
+            process.AssertZeroExitCode();
+        });
+
     Target Test => _ => _
         .Description("Runs all xUnit test projects, emits TRX results to artifacts/test-results/.")
         .DependsOn(Compile)
+        .DependsOn(InstallPlaywrightBrowsers)
         .Executes(() =>
         {
             TestResultsDirectory.CreateOrCleanDirectory();
