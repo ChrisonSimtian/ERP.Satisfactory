@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject IJSRuntime JS
 @inject PlannerApiClient Api
+@inject IDialogService DialogService
 @implements IAsyncDisposable
 
 <PageTitle>Factory map</PageTitle>
@@ -48,6 +49,9 @@ else if (loadedSummary is null)
         {
             <MudText Typo="Typo.caption" Color="Color.Default">No data — ingest a save first.</MudText>
         }
+        <MudText Typo="Typo.caption" Color="Color.Default" Class="d-block mt-3">
+            Click a resource node to set its resource + purity.
+        </MudText>
     </div>
     <div id="factory-map-canvas" @ref="mapElement" class="map-canvas"></div>
 </div>
@@ -55,14 +59,20 @@ else if (loadedSummary is null)
 @code {
     private ElementReference mapElement;
     private IJSObjectReference? mapModule;
+    private DotNetObjectReference<FactoryMap>? selfRef;
     private LayerInfo[]? layers;
     private string? loadedSummary;
     private string? errorMessage;
+    private System.Text.Json.JsonElement? currentGeoJson;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
+        await LoadMap();
+    }
 
+    private async Task LoadMap()
+    {
         try
         {
             var geojson = await Api.GetFactoryStateGeoJsonAsync();
@@ -72,13 +82,17 @@ else if (loadedSummary is null)
                 StateHasChanged();
                 return;
             }
+            currentGeoJson = geojson;
 
-            mapModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/factory-map.js");
-            var rawLayers = await mapModule.InvokeAsync<LayerInfo[]>("initialize", mapElement, geojson);
+            mapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "/js/factory-map.js");
+            selfRef ??= DotNetObjectReference.Create(this);
+
+            var rawLayers = await mapModule.InvokeAsync<LayerInfo[]>("initialize", mapElement, geojson, selfRef);
 
             layers = rawLayers.Select(l => l with { Visible = true }).ToArray();
             var total = layers.Sum(l => l.Count);
             loadedSummary = $"{total:N0} features across {layers.Length} layers";
+            errorMessage = null;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -100,6 +114,57 @@ else if (loadedSummary is null)
         }
     }
 
+    /// <summary>
+    /// Invoked from factory-map.js when a resource-node marker is clicked.
+    /// Opens the override dialog pre-filled with the node's current resource +
+    /// purity; if the user saves or clears, we reload the map so the change
+    /// is reflected.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnResourceNodeClicked(string reference)
+    {
+        if (currentGeoJson is null) return;
+
+        var (currentResource, currentPurity) = FindNodeState(currentGeoJson.Value, reference);
+
+        var parameters = new DialogParameters
+        {
+            ["Reference"] = reference,
+            ["CurrentResource"] = currentResource,
+            ["CurrentPurity"] = currentPurity,
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<NodeOverrideDialog>("Set resource node", parameters, options);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await LoadMap();
+        }
+    }
+
+    private static (string? Resource, string? Purity) FindNodeState(System.Text.Json.JsonElement gj, string reference)
+    {
+        if (!gj.TryGetProperty("features", out var features) || features.ValueKind != System.Text.Json.JsonValueKind.Array)
+            return (null, null);
+
+        // GeoFeature.Make() in Program.cs stores the node's in-save reference (PathName)
+        // as the feature's `kind` property — that's what we match against here.
+        foreach (var f in features.EnumerateArray())
+        {
+            if (!f.TryGetProperty("properties", out var props)) continue;
+            if (!props.TryGetProperty("category", out var cat) || cat.GetString() != "resource-node") continue;
+            if (!props.TryGetProperty("kind", out var kind) || kind.GetString() != reference) continue;
+
+            string? resource = props.TryGetProperty("resource", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.String
+                ? r.GetString() : null;
+            string? purity = props.TryGetProperty("purity", out var p) && p.ValueKind == System.Text.Json.JsonValueKind.String
+                ? p.GetString() : null;
+            return (resource, purity);
+        }
+        return (null, null);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (mapModule is not null)
@@ -112,6 +177,7 @@ else if (loadedSummary is null)
             catch (JSDisconnectedException) { /* circuit closed */ }
             catch (Exception) { /* best-effort cleanup */ }
         }
+        selfRef?.Dispose();
     }
 
     private record LayerInfo(string Category, string Label, string Color, int Count, bool Visible = false);

@@ -12,6 +12,7 @@ let map = null;
 let categoryLayers = {};
 let geojson = null;
 let backdropLayer = null;
+let dotNetCallback = null; // Optional Blazor handle for resource-node clicks (#42).
 
 const STYLE = {
     'resource-node': { color: '#FFC53D', radius: 3.5, opacity: 0.85, label: 'Resource nodes' },
@@ -32,7 +33,7 @@ const NODE_KIND_STYLE = {
     'FrackingSatellite':  { color: '#7E5DC5', radius: 4,   opacity: 0.9  },
 };
 
-export async function initialize(element, featureCollection) {
+export async function initialize(element, featureCollection, callback) {
     await ensureLeafletLoaded();
     if (map) {
         map.remove();
@@ -40,6 +41,7 @@ export async function initialize(element, featureCollection) {
     }
 
     geojson = featureCollection;
+    dotNetCallback = callback ?? null;
 
     map = L.map(element, {
         crs: L.CRS.Simple,
@@ -88,6 +90,7 @@ export function dispose() {
     categoryLayers = {};
     geojson = null;
     backdropLayer = null;
+    dotNetCallback = null;
 }
 
 // -------------------------------------------------------------------------
@@ -183,6 +186,18 @@ function buildCategoryLayers(featureCollection) {
             className: 'fx-map-tooltip',
         });
         shape.bindPopup(popupHtml(feature));
+
+        // Resource-node markers are click-editable when a Blazor callback is
+        // wired up (#42 manual overrides). Other categories don't need this.
+        if (cat === 'resource-node' && dotNetCallback) {
+            const reference = feature.properties.kind;
+            shape.on('click', () => {
+                // invokeMethodAsync is the standard Blazor JS-interop entry; the
+                // C# side has a [JSInvokable] method matching this signature.
+                dotNetCallback.invokeMethodAsync('OnResourceNodeClicked', reference)
+                    .catch(err => console.error('Resource-node click callback failed:', err));
+            });
+        }
 
         target.addLayer(shape);
         target._featureCount = (target._featureCount ?? 0) + 1;

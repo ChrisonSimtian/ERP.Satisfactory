@@ -125,6 +125,55 @@ app.MapPost("/factory/ingest", async (
     }
 });
 
+// ----- Manual node overrides (#42 Option B) ---------------------------------
+// User-curated resource + purity for individual BP_ResourceNode_C actors.
+// Persisted to %LOCALAPPDATA%\ERP.Satisfactory\manual-node-overrides.json.
+// Body identifies the node by `reference` (the in-save PathName, surfaced in
+// GeoJSON as the resource-node feature's `kind`). The server resolves the
+// node's position from current state, persists at that position (so the
+// override survives across saves of the same world), and refreshes parsed
+// state so callers see the change immediately.
+
+app.MapPut("/factory/node-override", (
+    NodeOverrideRequest request,
+    Satisfactory.Save.ManualNodeOverrides overrides,
+    IFactoryStateProvider provider) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Reference))
+        return Results.BadRequest(new { error = "Reference is required." });
+    if (string.IsNullOrWhiteSpace(request.Resource))
+        return Results.BadRequest(new { error = "Resource is required (e.g. Desc_OreIron_C)." });
+    if (!Enum.TryParse<ERP.Domain.NodePurity>(request.Purity, ignoreCase: true, out var purity))
+        return Results.BadRequest(new { error = $"Unknown purity '{request.Purity}'. Use Impure, Normal, or Pure." });
+
+    var node = provider.Current.ResourceNodes
+        .FirstOrDefault(n => string.Equals(n.Reference, request.Reference, StringComparison.Ordinal));
+    if (node is null)
+        return Results.NotFound(new { error = $"No resource node with reference '{request.Reference}'." });
+
+    overrides.Upsert(node.Position, request.Resource, purity);
+    provider.Refresh();
+    return Results.NoContent();
+});
+
+app.MapDelete("/factory/node-override", (
+    string reference,
+    Satisfactory.Save.ManualNodeOverrides overrides,
+    IFactoryStateProvider provider) =>
+{
+    if (string.IsNullOrWhiteSpace(reference))
+        return Results.BadRequest(new { error = "reference query parameter is required." });
+
+    var node = provider.Current.ResourceNodes
+        .FirstOrDefault(n => string.Equals(n.Reference, reference, StringComparison.Ordinal));
+    if (node is null)
+        return Results.NotFound(new { error = $"No resource node with reference '{reference}'." });
+
+    var removed = overrides.Delete(node.Position);
+    if (removed) provider.Refresh();
+    return Results.NoContent();
+});
+
 app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvider catalog, ILoggerFactory loggerFactory) =>
 {
     if (!catalog.IsLoaded || catalog.Recipes.Count == 0)
@@ -170,6 +219,13 @@ public sealed record RecipeView(
 public sealed record ConfigureCatalogueRequest(string DocsPath);
 
 public sealed record IngestSaveRequest(string SavePath);
+
+/// <summary>
+/// PUT /factory/node-override body. Purity arrives as a string (Impure /
+/// Normal / Pure) — Minimal APIs JSON binding doesn't string-bind enums by
+/// default, and we don't want to enable that globally for everything else.
+/// </summary>
+public sealed record NodeOverrideRequest(string Reference, string Resource, string Purity);
 
 public sealed record DetectedSaveView(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);
 

@@ -61,6 +61,33 @@ public class PlannerApiClient(HttpClient httpClient)
         var error = await response.Content.ReadAsStringAsync(ct);
         return new FactoryIngestResult(false, null, error);
     }
+
+    /// <summary>
+    /// Upserts a manual resource + purity override for the given node
+    /// reference. The API resolves the node's position from current state
+    /// and persists at that position; subsequent re-parses of the same world
+    /// will pick up the override automatically.
+    /// </summary>
+    public async Task<NodeOverrideResult> SetNodeOverrideAsync(string reference, string resource, string purity, CancellationToken ct = default)
+    {
+        var response = await httpClient.PutAsJsonAsync(
+            "/factory/node-override",
+            new { reference, resource, purity },
+            ct);
+        if (response.IsSuccessStatusCode) return new NodeOverrideResult(true, null);
+        var error = await response.Content.ReadAsStringAsync(ct);
+        return new NodeOverrideResult(false, error);
+    }
+
+    public async Task<NodeOverrideResult> ClearNodeOverrideAsync(string reference, CancellationToken ct = default)
+    {
+        var response = await httpClient.DeleteAsync(
+            $"/factory/node-override?reference={Uri.EscapeDataString(reference)}",
+            ct);
+        if (response.IsSuccessStatusCode) return new NodeOverrideResult(true, null);
+        var error = await response.Content.ReadAsStringAsync(ct);
+        return new NodeOverrideResult(false, error);
+    }
 }
 
 public sealed record CatalogItem(string Id, string Name);
@@ -138,3 +165,5 @@ public sealed record FactoryStateViewModel(
 public sealed record FactoryIngestResult(bool Success, FactoryStateViewModel? State, string? Error);
 
 public sealed record DetectedSaveViewModel(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);
+
+public sealed record NodeOverrideResult(bool Success, string? Error);
