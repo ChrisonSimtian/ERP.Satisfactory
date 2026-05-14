@@ -15,6 +15,8 @@
   <ItemGroup>
     <!-- Bundle the resource-node lookup table inside the assembly. -->
     <EmbeddedResource Include="Data\known-resource-nodes.json" />
+    <!-- Bundle the flora lookup table (issue #62). -->
+    <EmbeddedResource Include="Data\known-flora.json" />
   </ItemGroup>
 
 </Project>

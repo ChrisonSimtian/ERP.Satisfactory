@@ -1,4 +1,10 @@
-# Known resource node data
+# Bundled static datasets
+
+This folder holds the world-fixed datasets we ship inside the
+`Satisfactory.Save` assembly as embedded resources. Both cover entities
+the `.sav` parser can't surface directly, for different reasons.
+
+## `known-resource-nodes.json` — resource node lookup
 
 Static lookup table mapping resource node coordinates to their
 `(Resource, Purity)` for vanilla Satisfactory worlds. Consumed by
@@ -74,3 +80,44 @@ Some node identifications work without the coordinate lookup:
 
 The static table is for `BP_ResourceNode_C` actors (the main mining nodes
 that miners are placed on).
+
+## `known-flora.json` — flora pickup positions (issue #62)
+
+World-fixed positions for vanilla flora pickups — Bacon Agaric,
+Paleberry, Beryl Nut, Mycelia. Consumed by
+[`KnownFlora`](../KnownFlora.cs) and surfaced through the `/factory/map`
+"Flora" layer.
+
+### Why a static table
+
+Unlike resource nodes, vanilla flora are not save-actors at all — they're
+**instanced static-mesh foliage** placed at level-design time in the
+`FactoryGame.pak`. The save file only stores *destroyed* positions
+(`mRemovalLocations` on `FGFoliageRemoval`, plus `mDestroyedPickups`),
+not the original ones. To draw flora on the map we need their original
+positions independently of the save.
+
+### Format
+
+```json
+[
+  { "x": 120000, "y": 60000, "z": 100, "species": "Desc_Berry_C" }
+]
+```
+
+- **`x` / `y` / `z`** — Unreal world coordinates in centimetres.
+- **`species`** — ItemId of the harvested item. One of:
+  - `Desc_Berry_C` — Paleberry
+  - `Desc_Nut_C` — Beryl Nut
+  - `Desc_Shroom_C` — Bacon Agaric
+  - `Desc_Mycelia_C` — Mycelia
+
+### Sourcing the data
+
+Same options as the resource-node table — wiki (CC-BY-SA) is the cleanest
+path. The current dataset is a small seed (a few entries per species) so
+the map layer renders something; full population is a follow-up.
+
+Future work: cross-reference picked-up flora from the save's
+`mDestroyedPickups` / `mRemovalLocations` GUIDs so the map can hide flora
+the player has already harvested.

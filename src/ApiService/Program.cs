@@ -91,8 +91,8 @@ app.MapPost("/catalogue/configure", (ConfigureCatalogueRequest request, ICatalog
 app.MapGet("/factory/state", (IFactoryStateProvider provider, ICatalogProvider catalog) =>
     FactoryStateView.From(provider, catalog));
 
-app.MapGet("/factory/state.geojson", (IFactoryStateProvider provider, ICatalogProvider catalog) =>
-    Results.Json(FactoryStateGeoJson.From(provider, catalog), contentType: "application/geo+json"));
+app.MapGet("/factory/state.geojson", (IFactoryStateProvider provider, ICatalogProvider catalog, Satisfactory.Save.KnownFlora flora) =>
+    Results.Json(FactoryStateGeoJson.From(provider, catalog, flora), contentType: "application/geo+json"));
 
 app.MapGet("/factory/saves", () =>
     SaveFileResolver.EnumerateDetectedSaves()
@@ -362,6 +362,12 @@ public sealed record FactoryStateGeoJson(
     Dictionary<string, object?> Metadata)
 {
     public static FactoryStateGeoJson From(IFactoryStateProvider provider, ICatalogProvider catalog)
+        => From(provider, catalog, Satisfactory.Save.KnownFlora.Empty);
+
+    public static FactoryStateGeoJson From(
+        IFactoryStateProvider provider,
+        ICatalogProvider catalog,
+        Satisfactory.Save.KnownFlora flora)
     {
         var s = provider.Current;
         var features = new List<GeoFeature>();
@@ -411,6 +417,18 @@ public sealed record FactoryStateGeoJson(
             {
                 ["genKind"] = g.Kind.ToString(),
             }));
+
+        // Flora layer (#62) — static dataset, not from the save. Each feature
+        // carries the species ItemId so the JS layer can pick the right wiki
+        // item icon (Desc_Berry_C.png etc.) and surface a friendly name.
+        foreach (var f in flora.All)
+        {
+            features.Add(GeoFeature.Make("flora", f.Species, new Position(f.X, f.Y, f.Z), new()
+            {
+                ["species"] = f.Species,
+                ["speciesName"] = f.DisplayName,
+            }));
+        }
 
         var meta = new Dictionary<string, object?>
         {
