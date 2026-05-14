@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!--
+      Pinned to net8.0 to match vendor/CUE4Parse/CUE4Parse/CUE4Parse.csproj
+      (which targets net8.0). Multi-targeting net10 here would force the
+      vendored project to multi-target as well; not worth the churn for a
+      one-shot CLI tool.
+    -->
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SatisfactoryPakExtractor</RootNamespace>
+    <!-- CUE4Parse uses some pre-release native deps; suppress version warnings. -->
+    <NoWarn>$(NoWarn);NU1701;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Vendored CUE4Parse master (see vendor/CUE4Parse, pinned in this tool's
+      README). NuGet 1.2.2 cannot parse Satisfactory 1.x's IoStore container
+      header — vendoring master lets us pick up upstream fixes promptly.
+    -->
+    <ProjectReference Include="..\..\vendor\CUE4Parse\CUE4Parse\CUE4Parse.csproj" />
+    <!-- CUE4Parse logs warnings via Serilog; wire a console sink so we see them. -->
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+  </ItemGroup>
+
+</Project>
