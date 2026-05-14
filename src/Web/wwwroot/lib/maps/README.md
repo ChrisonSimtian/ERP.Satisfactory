@@ -19,13 +19,29 @@ for the licensing decision.
 
 ## Calibration
 
-The user-selectable backdrop is positioned by Leaflet `ImageOverlay`
-bounds, currently the same padded resource-node extent the procedural
-backdrop uses. If markers don't line up cleanly with a specific image,
-override per-image bounds in `factory-map.js`'s `MAP_BACKDROPS` table.
+All three wiki images share the same projection — they're rendered from
+the in-game world map data — so they use a single shared bounds entry
+`WIKI_MAP_BOUNDS` in `factory-map.js`'s `MAP_BACKDROPS` table:
+
+```
+X: -324698 to +425302   (Unreal cm, east-positive)
+Y: -375000 to +375000   (Unreal cm, south-positive)
+```
+
+These are the standard Satisfactory world bounds — 750,000 cm × 750,000
+cm, centered slightly east of world origin. Verified against marker
+alignment in issue [#43](https://github.com/ChrisonSimtian/ERP.Satisfactory/issues/43):
+miners and production buildings sit on land in the terrain and water
+backdrops; biome zones line up cleanly under markers.
+
+If a future backdrop uses a different framing, give it its own `bounds`
+entry. If `bounds` is omitted, `factory-map.js` falls back to the padded
+resource-node extent (roughly correct but pixel-imprecise).
 
 ## Adding a new backdrop
 
 1. Drop the image in this directory.
 2. Add an entry to `MAP_BACKDROPS` in `src/Web/wwwroot/js/factory-map.js`.
-3. Add a radio option in `src/Web/Components/Pages/Settings.razor`.
+   If the image uses the same projection as the existing wiki maps, point
+   its `bounds` at `WIKI_MAP_BOUNDS`; otherwise calibrate per-image.
+3. Add a `MudSelectItem` in `src/Web/Components/Pages/Settings.razor`.
