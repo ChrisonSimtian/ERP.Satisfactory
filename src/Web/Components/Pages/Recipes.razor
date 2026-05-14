@@ -9,13 +9,13 @@
 
 @if (status is { IsLoaded: false })
 {
-    <div class="alert alert-warning">
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3">
         No catalogue loaded yet. <a href="settings">Point the app at your <code>Docs.json</code> in Settings</a> before browsing recipes.
-    </div>
+    </MudAlert>
 }
 else if (recipes is null)
 {
-    <p><em>Loading recipes...</em></p>
+    <MudText><em>Loading recipes...</em></MudText>
 }
 else
 {

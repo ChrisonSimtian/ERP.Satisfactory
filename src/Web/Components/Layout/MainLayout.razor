@@ -55,8 +55,9 @@
     {
         if (!firstRender) return;
 
-        // The pre-paint script in App.razor may have set data-bs-theme from localStorage
-        // before Blazor booted. Pick that up so MudBlazor's IsDarkMode matches.
+        // The pre-paint script in App.razor may have set the theme-dark/theme-light
+        // class on <html> from localStorage before Blazor booted. Pick that up so
+        // MudBlazor's IsDarkMode matches.
         var initial = await JS.InvokeAsync<string>("erpReadInitialTheme");
         var darkInitial = !string.Equals(initial, "light", StringComparison.Ordinal);
         if (darkInitial != _isDarkMode)
@@ -69,8 +70,8 @@
     private async Task ToggleTheme()
     {
         _isDarkMode = !_isDarkMode;
-        // One-way C# → DOM/localStorage. Bootstrap-themed pages still read data-bs-theme
-        // until they migrate off Bootstrap (Phase 3+).
+        // One-way C# → DOM/localStorage. The class on <html> is read by app.css
+        // selectors (.theme-dark / .theme-light) for the non-Mud surfaces.
         await JS.InvokeVoidAsync("erpSetTheme", _isDarkMode ? "dark" : "light");
     }
 }

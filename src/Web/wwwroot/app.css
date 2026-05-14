@@ -3,16 +3,20 @@
 
    Layered approach:
      1. CSS custom properties define the palette (dark + light variants).
-     2. Bootstrap variable overrides pull the same palette into BS components.
-     3. Bespoke utility classes (hazard tape, LEDs, gear spinner, panel cards)
-        give the visual personality.
+        The active variant is selected by .theme-dark / .theme-light on
+        <html>, set by App.razor's pre-paint script and updated by
+        MainLayout's theme toggle.
+     2. Bespoke utility classes (hazard tape, LEDs, gear spinner, panel cards,
+        icon masks) give the visual personality.
+     3. MudBlazor primitives are restyled at the bottom of this file to carry
+        the FICSIT aesthetic through the framework components.
 
    All icons + decorations are inline SVG so the app stays offline-friendly
-   and the theme follows currentColor / data-bs-theme automatically.
+   and the theme follows currentColor automatically.
    ========================================================================= */
 
 :root,
-[data-bs-theme="dark"] {
+.theme-dark {
     /* FICSIT brand palette. */
     --fx-orange:        #FA9549;
     --fx-orange-bright: #FFB070;
@@ -47,22 +51,15 @@
     --fx-info:          #5FB0C9;
     --fx-info-glow:     rgba(95, 176, 201, 0.55);
 
-    /* Bootstrap variable overrides. */
-    --bs-body-bg:       var(--fx-bg);
-    --bs-body-color:    var(--fx-text);
-    --bs-primary:       var(--fx-orange);
-    --bs-primary-rgb:   250, 149, 73;
-    --bs-link-color:    var(--fx-orange-bright);
-    --bs-link-hover-color: var(--fx-yellow);
-    --bs-border-color:  var(--fx-border);
-    --bs-secondary-color: var(--fx-text-muted);
-    --bs-tertiary-color:  var(--fx-text-muted);
+    /* Link colors (read directly by <a> styling further down). */
+    --fx-link:          var(--fx-orange-bright);
+    --fx-link-hover:    var(--fx-yellow);
 
     /* Schematic grid (faint) used as a body backdrop. */
     --fx-grid-line:     rgba(250, 149, 73, 0.035);
 }
 
-[data-bs-theme="light"] {
+.theme-light {
     --fx-bg:            #F0EBE0;
     --fx-bg-elevated:   #FFFFFF;
     --fx-bg-panel:      #FAF6EC;
@@ -76,12 +73,8 @@
     --fx-text-dim:      #98948A;
     --fx-text-strong:   #000000;
 
-    --bs-body-bg:       var(--fx-bg);
-    --bs-body-color:    var(--fx-text);
-    --bs-link-color:    var(--fx-orange-dim);
-    --bs-link-hover-color: var(--fx-orange);
-    --bs-border-color:  var(--fx-border);
-    --bs-secondary-color: var(--fx-text-muted);
+    --fx-link:          var(--fx-orange-dim);
+    --fx-link-hover:    var(--fx-orange);
 
     --fx-grid-line:     rgba(199, 116, 55, 0.05);
 }
@@ -93,8 +86,8 @@
 
 html, body {
     font-family: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: var(--bs-body-bg);
-    color: var(--bs-body-color);
+    background-color: var(--fx-bg);
+    color: var(--fx-text);
     /* Faint schematic grid behind everything. */
     background-image:
         linear-gradient(var(--fx-grid-line) 1px, transparent 1px),
@@ -102,7 +95,7 @@ html, body {
     background-size: 32px 32px;
 }
 
-h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+h1, h2, h3, h4, h5, h6 {
     font-family: 'Bahnschrift Condensed', 'Bahnschrift', 'Inter Tight', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
     color: var(--fx-text-strong);
     letter-spacing: 0.04em;
@@ -142,6 +135,54 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
     font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
 }
 
+.small {
+    font-size: 0.875em;
+}
+
+a {
+    color: var(--fx-link);
+    text-decoration: none;
+}
+a:hover {
+    color: var(--fx-link-hover);
+    text-decoration: underline;
+}
+
+/* Inline code chips. */
+code {
+    color: var(--fx-orange-bright);
+    background-color: rgba(250, 149, 73, 0.08);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.9em;
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+}
+.theme-light code {
+    color: var(--fx-orange-dim);
+}
+
+.content { padding-top: 1.1rem; }
+h1:focus { outline: none; }
+
+/* Large display number — used for FactoryIngest's "Resource nodes" total. */
+.display-6 {
+    color: var(--fx-orange);
+    font-weight: 700;
+    font-family: 'Bahnschrift', 'Inter Tight', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    font-size: calc(1.425rem + 2.1vw);
+    line-height: 1.2;
+    text-shadow: 0 0 12px var(--fx-orange-glow);
+}
+@media (min-width: 1200px) {
+    .display-6 { font-size: 2.5rem; }
+}
+
+/* EditForm validation hooks. */
+.valid.modified:not([type=checkbox]) { outline: 1px solid var(--fx-success); }
+.invalid { outline: 1px solid var(--fx-danger); }
+.validation-message { color: var(--fx-danger); }
+
 /* ------------------------------------------------------------------------
    Hazard tape — diagonal yellow/black stripes. Used as a strip element
    under the top-row, as section dividers, on focused buttons, etc.
@@ -164,10 +205,11 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
 }
 
 /* ------------------------------------------------------------------------
-   Panel cards — "riveted plate" look with corner accents.
+   Panel cards — "riveted plate" look with corner accents. Applied to any
+   element with .fx-panel (e.g. MudPaper on the Home cards).
    ------------------------------------------------------------------------ */
 
-.card, .fx-panel {
+.fx-panel {
     background-color: var(--fx-bg-panel);
     border: 1px solid var(--fx-border);
     border-radius: 4px;
@@ -175,8 +217,8 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
     overflow: visible;
 }
 
-.card::before, .fx-panel::before,
-.card::after,  .fx-panel::after {
+.fx-panel::before,
+.fx-panel::after {
     content: "";
     position: absolute;
     width: 10px;
@@ -186,7 +228,7 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
 }
 
 /* Top-left corner: ┌ */
-.card::before, .fx-panel::before {
+.fx-panel::before {
     top: -2px;
     left: -2px;
     border-right: none;
@@ -194,7 +236,7 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
 }
 
 /* Bottom-right corner: ┘ */
-.card::after, .fx-panel::after {
+.fx-panel::after {
     bottom: -2px;
     right: -2px;
     border-left: none;
@@ -208,8 +250,6 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
     text-transform: uppercase;
     font-size: 1rem;
 }
-
-.card-body { padding: 1.1rem 1.25rem; }
 
 /* ------------------------------------------------------------------------
    Status LEDs — small glowing dot used inside alerts / next to labels.
@@ -263,8 +303,8 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
 
 /* Reusable SVG asset variables (URI-encoded so CSS can reference them). */
 :root,
-[data-bs-theme="dark"],
-[data-bs-theme="light"] {
+.theme-dark,
+.theme-light {
     --fx-icon-gear: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='currentColor' d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 1l-.5 2.6a8.8 8.8 0 0 0-2.3 1L6 3.2 3.2 6l1.4 2.2c-.5.7-.8 1.5-1 2.3L1 11v2l2.6.5c.2.8.5 1.6 1 2.3L3.2 18 6 20.8l2.2-1.4c.7.5 1.5.8 2.3 1L11 23h2l.5-2.6c.8-.2 1.6-.5 2.3-1l2.2 1.4L20.8 18l-1.4-2.2c.5-.7.8-1.5 1-2.3L23 13v-2l-2.6-.5a8.8 8.8 0 0 0-1-2.3L20.8 6 18 3.2l-2.2 1.4c-.7-.5-1.5-.8-2.3-1L13 1h-2z'/%3E%3C/svg%3E");
 }
 
@@ -333,169 +373,6 @@ h5 { font-size: 1.05rem; letter-spacing: 0.06em; }
 }
 
 /* ------------------------------------------------------------------------
-   Bootstrap overrides — buttons, forms, tables, alerts.
-   ------------------------------------------------------------------------ */
-
-a, .btn-link {
-    color: var(--bs-link-color);
-    text-decoration: none;
-}
-a:hover, .btn-link:hover {
-    color: var(--bs-link-hover-color);
-    text-decoration: underline;
-}
-
-.btn-primary {
-    background: linear-gradient(180deg, var(--fx-orange-bright) 0%, var(--fx-orange) 50%, var(--fx-orange-dim) 100%);
-    border: 1px solid var(--fx-orange-dim);
-    color: #1B1B1F;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    padding: 0.45rem 0.95rem;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-.btn-primary:hover,
-.btn-primary:focus {
-    background: linear-gradient(180deg, #FFC990 0%, var(--fx-orange-bright) 50%, var(--fx-orange) 100%);
-    border-color: var(--fx-orange);
-    color: #0F0F12;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 0 0 0.2rem var(--fx-orange-glow), 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-.btn-primary:disabled {
-    background: var(--fx-orange-dim);
-    color: rgba(27, 27, 31, 0.6);
-    cursor: not-allowed;
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus,
-.form-control:focus, .form-select:focus, .form-check-input:focus {
-    box-shadow: 0 0 0 0.2rem var(--fx-orange-glow) !important;
-    border-color: var(--fx-orange) !important;
-}
-
-.form-control, .form-select {
-    background-color: var(--fx-bg-input);
-    border-color: var(--fx-border);
-    color: var(--fx-text);
-    font-family: 'Cascadia Mono', 'Consolas', 'Segoe UI Variable', 'Segoe UI', monospace;
-    font-size: 0.92rem;
-}
-.form-control::placeholder { color: var(--fx-text-dim); }
-.form-control:focus, .form-select:focus {
-    background-color: var(--fx-bg-input);
-    color: var(--fx-text);
-}
-.form-text { color: var(--fx-text-muted); }
-.form-label {
-    color: var(--fx-text);
-    text-transform: uppercase;
-    font-size: 0.78rem;
-    letter-spacing: 0.06em;
-    font-weight: 600;
-    margin-bottom: 0.35rem;
-}
-
-.table {
-    --bs-table-bg: transparent;
-    --bs-table-color: var(--fx-text);
-    --bs-table-border-color: var(--fx-border-soft);
-    --bs-table-hover-bg: rgba(250, 149, 73, 0.06);
-    --bs-table-hover-color: var(--fx-text);
-}
-.table > thead {
-    color: var(--fx-text-muted);
-    text-transform: uppercase;
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    border-bottom: 2px solid var(--fx-orange-dim);
-}
-.table > thead th {
-    background: linear-gradient(180deg, transparent 0%, rgba(250, 149, 73, 0.04) 100%);
-    font-weight: 700;
-}
-.table code { color: var(--fx-text); }
-
-/* Inline code chips. */
-code {
-    color: var(--fx-orange-bright);
-    background-color: rgba(250, 149, 73, 0.08);
-    padding: 0.1em 0.35em;
-    border-radius: 3px;
-    font-size: 0.9em;
-    font-family: 'Cascadia Mono', 'Consolas', monospace;
-}
-[data-bs-theme="light"] code {
-    color: var(--fx-orange-dim);
-}
-
-/* Alerts: panel-like with a thick LED-coloured left stripe. */
-.alert {
-    background-color: var(--fx-bg-panel);
-    border: 1px solid var(--fx-border);
-    border-left: 5px solid var(--fx-text-muted);
-    color: var(--fx-text);
-    padding: 0.85rem 1rem;
-    border-radius: 4px;
-    position: relative;
-}
-.alert-success { border-left-color: var(--fx-success); }
-.alert-success strong { color: var(--fx-success); }
-.alert-warning { border-left-color: var(--fx-warning); }
-.alert-warning strong { color: var(--fx-warning); }
-.alert-danger  { border-left-color: var(--fx-danger);  }
-.alert-danger strong  { color: var(--fx-danger); }
-.alert-secondary { border-left-color: var(--fx-text-muted); }
-.alert-info    { border-left-color: var(--fx-info);    }
-.alert-info strong    { color: var(--fx-info); }
-
-/* Status helpers. */
-.text-success { color: var(--fx-success) !important; }
-.text-danger  { color: var(--fx-danger)  !important; }
-.text-muted   { color: var(--fx-text-muted) !important; }
-
-/* Display numbers (resource node count, etc.). */
-.display-6 {
-    color: var(--fx-orange);
-    font-weight: 700;
-    font-family: 'Bahnschrift', 'Inter Tight', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-    letter-spacing: 0.02em;
-    text-shadow: 0 0 12px var(--fx-orange-glow);
-}
-
-/* Validation. */
-.valid.modified:not([type=checkbox]) { outline: 1px solid var(--fx-success); }
-.invalid { outline: 1px solid var(--fx-danger); }
-.validation-message { color: var(--fx-danger); }
-
-.content { padding-top: 1.1rem; }
-h1:focus { outline: none; }
-
-/* ------------------------------------------------------------------------
-   Theme toggle button.
-   ------------------------------------------------------------------------ */
-
-.theme-toggle {
-    background: transparent;
-    border: 1px solid var(--fx-border);
-    color: var(--fx-text);
-    border-radius: 4px;
-    padding: 0.3rem 0.7rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    line-height: 1.4;
-    font-family: 'Bahnschrift', 'Segoe UI Variable', 'Segoe UI', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-.theme-toggle:hover {
-    border-color: var(--fx-orange);
-    color: var(--fx-orange);
-    box-shadow: 0 0 8px var(--fx-orange-glow);
-}
-
-/* ------------------------------------------------------------------------
    Blazor error UI — themed.
    ------------------------------------------------------------------------ */
 
@@ -507,23 +384,12 @@ h1:focus { outline: none; }
 }
 .blazor-error-boundary::after { content: "An error has occurred."; }
 
-.form-floating > .form-control-plaintext::placeholder,
-.form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
-}
-.form-floating > .form-control-plaintext:focus::placeholder,
-.form-floating > .form-control:focus::placeholder {
-    text-align: start;
-}
-
 /* ------------------------------------------------------------------------
-   MudBlazor integration — Phase 2 of the migration. The framework's
-   primitives (.mud-drawer, .mud-nav-link, .mud-appbar, .mud-icon-button)
-   are restyled here to carry the FICSIT industrial aesthetic. Classes are
-   MudBlazor globals; the .fx-* modifier classes are applied in MainLayout
-   and NavMenu so the overrides only affect the app shell, not page-level
-   uses of the same primitives.
+   MudBlazor restyling — the framework's primitives (.mud-drawer,
+   .mud-nav-link, .mud-appbar, .mud-icon-button) carry the FICSIT
+   industrial aesthetic. Classes are MudBlazor globals; the .fx-* modifier
+   classes are applied in MainLayout and NavMenu so the overrides only
+   affect the app shell, not page-level uses of the same primitives.
    ------------------------------------------------------------------------ */
 
 /* MudLayout — let our app's grid + schematic backdrop show through. */
@@ -573,7 +439,7 @@ h1:focus { outline: none; }
     backdrop-filter: none;
 }
 
-[data-bs-theme="light"] .mud-appbar.fx-appbar {
+.theme-light .mud-appbar.fx-appbar {
     background: linear-gradient(180deg, #FAF6EC 0%, #F0EBE0 100%) !important;
     color: var(--fx-text) !important;
 }
@@ -656,4 +522,3 @@ h1:focus { outline: none; }
 .fx-amount.fx-amount-missing .fx-amount-text {
     color: var(--fx-danger);
 }
-
