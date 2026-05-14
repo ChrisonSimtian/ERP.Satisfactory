@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" class="theme-dark">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Web.styles.css"]" />
@@ -13,26 +12,27 @@
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
     <script>
-        // Apply persisted theme before first paint to avoid a flash. Blazor (MainLayout)
+        // Apply persisted theme before first paint to avoid a flash. MainLayout
         // takes over as soon as the circuit boots — this is just the pre-hydration nudge.
         (function () {
             try {
                 var saved = localStorage.getItem('erp-theme');
                 if (saved === 'light' || saved === 'dark') {
-                    document.documentElement.setAttribute('data-bs-theme', saved);
+                    document.documentElement.classList.remove('theme-dark', 'theme-light');
+                    document.documentElement.classList.add('theme-' + saved);
                 }
             } catch (_) { /* localStorage may be unavailable */ }
         })();
-        // Two-way bridge between MudBlazor's IsDarkMode (C# source of truth) and
-        // Bootstrap's data-bs-theme attribute (still needed during the phased migration
-        // for pages that haven't moved to MudBlazor primitives yet). MainLayout calls
+        // Bridge between MudBlazor's IsDarkMode (C# source of truth) and the
+        // .theme-dark / .theme-light class on <html>. MainLayout calls
         // erpSetTheme on toggle and erpReadInitialTheme once on init.
         window.erpSetTheme = function (theme) {
-            document.documentElement.setAttribute('data-bs-theme', theme);
+            document.documentElement.classList.remove('theme-dark', 'theme-light');
+            document.documentElement.classList.add('theme-' + theme);
             try { localStorage.setItem('erp-theme', theme); } catch (_) { }
         };
         window.erpReadInitialTheme = function () {
-            return document.documentElement.getAttribute('data-bs-theme') || 'dark';
+            return document.documentElement.classList.contains('theme-light') ? 'light' : 'dark';
         };
     </script>
 </head>
