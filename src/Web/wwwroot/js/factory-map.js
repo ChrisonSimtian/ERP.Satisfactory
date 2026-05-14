@@ -198,13 +198,21 @@ function buildCategoryLayers(featureCollection) {
 // - none: dark canvas only
 //
 // Selection persisted in localStorage under 'erp-map-backdrop'.
-// Default: 'terrain'. Per-image bounds calibration is tracked in #43.
+// Default: 'terrain'.
+//
+// Per-image `bounds` in Unreal cm align the imagery with marker positions
+// (issue #43). The three wiki images share the same projection — a 5000×5000
+// (or 2500×2500) square covering the playable world centered at world
+// origin (Grass Fields). When `bounds` is absent we fall back to the padded
+// resource-node extent, which is roughly correct but pixel-imprecise.
 // -------------------------------------------------------------------------
 
+const WIKI_MAP_BOUNDS = { minX: -324698, maxX: 425302, minY: -375000, maxY: 375000 };
+
 const MAP_BACKDROPS = {
-    'terrain': { kind: 'image', src: '/lib/maps/terrain.jpg', label: 'Terrain (wiki)' },
-    'biome':   { kind: 'image', src: '/lib/maps/biome.jpg',   label: 'Biome (wiki)' },
-    'water':   { kind: 'image', src: '/lib/maps/water.png',   label: 'Water (wiki)' },
+    'terrain': { kind: 'image', src: '/lib/maps/terrain.jpg', label: 'Terrain (wiki)', bounds: WIKI_MAP_BOUNDS },
+    'biome':   { kind: 'image', src: '/lib/maps/biome.jpg',   label: 'Biome (wiki)',   bounds: WIKI_MAP_BOUNDS },
+    'water':   { kind: 'image', src: '/lib/maps/water.png',   label: 'Water (wiki)',   bounds: WIKI_MAP_BOUNDS },
     'none':    { kind: 'none', label: 'None (dark canvas)' },
 };
 const DEFAULT_BACKDROP = 'terrain';
@@ -221,11 +229,13 @@ function addBackdrop(featureCollection) {
     const choice = readBackdropChoice();
     const backdrop = MAP_BACKDROPS[choice];
     if (!backdrop || backdrop.kind === 'none') return;
-    if (backdrop.kind === 'image') addImageBackdrop(featureCollection, backdrop.src);
+    if (backdrop.kind === 'image') {
+        const ext = backdrop.bounds ?? resourceNodeExtent(featureCollection, 0.15);
+        addImageBackdrop(backdrop.src, ext);
+    }
 }
 
-function addImageBackdrop(featureCollection, imageSrc) {
-    const ext = resourceNodeExtent(featureCollection, 0.15);
+function addImageBackdrop(imageSrc, ext) {
     const sw = unrealToLatLng(ext.minX, ext.maxY);
     const ne = unrealToLatLng(ext.maxX, ext.minY);
     backdropLayer = L.imageOverlay(imageSrc, [sw, ne], {
