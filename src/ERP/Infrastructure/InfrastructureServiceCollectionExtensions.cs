@@ -18,6 +18,10 @@ public static class InfrastructureServiceCollectionExtensions
         // shared with the SaveFileReader so re-parses pick up new entries.
         services.AddSingleton<ManualNodeOverrides>(_ => ManualNodeOverrides.LoadOrCreate(
             ManualNodeOverridesPath.Resolve(configuration["FactoryState:Satisfactory:OverridesPath"])));
+        // Static flora dataset for the /factory/map "Flora" layer (issue #62).
+        // Flora are not save-actors — they're foliage; vanilla positions are
+        // world-fixed and we surface them straight from the bundled JSON.
+        services.AddSingleton(_ => KnownFlora.LoadEmbedded());
         services.AddSingleton<IFactoryStateProvider, SatisfactorySaveNetFactoryStateProvider>();
         return services;
     }

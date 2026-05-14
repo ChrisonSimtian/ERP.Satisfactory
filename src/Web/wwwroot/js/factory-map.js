@@ -20,6 +20,11 @@ const STYLE = {
     'building':      { color: '#5FB0C9', radius: 5,   opacity: 1.0,  label: 'Production buildings' },
     'belt':          { color: '#7BB66B', radius: 1.8, opacity: 0.5,  label: 'Conveyor belts' },
     'generator':     { color: '#E5604A', radius: 6,   opacity: 1.0,  label: 'Generators' },
+    // Flora (#62) — Bacon Agaric / Paleberry / Beryl Nut / Mycelia. Off by
+    // default (lots of plants — clutters the map). Markers use per-species
+    // item icons from /assets/icons/items/ (ADR-0016); the color below is
+    // just the legend swatch + fallback dot tint when an icon is missing.
+    'flora':         { color: '#9CCC65', radius: 4,   opacity: 0.9,  label: 'Flora', defaultOff: true },
 };
 
 // Fallback styling for resource nodes whose resource isn't known yet (no
@@ -87,14 +92,17 @@ export async function initialize(element, featureCollection, callback) {
         map.setView([0, 0], 0);
     }
 
-    // Show everything by default.
-    Object.values(categoryLayers).forEach(l => l.addTo(map));
+    // Show everything by default — except layers flagged defaultOff (e.g. flora).
+    for (const [cat, layer] of Object.entries(categoryLayers)) {
+        if (!STYLE[cat]?.defaultOff) layer.addTo(map);
+    }
 
     return Object.keys(categoryLayers).map(k => ({
         category: k,
         label: STYLE[k]?.label ?? k,
         color: STYLE[k]?.color ?? '#FFFFFF',
         count: categoryLayers[k]._featureCount ?? 0,
+        visible: !STYLE[k]?.defaultOff,
     }));
 }
 
@@ -243,6 +251,11 @@ function buildShape(feature, style) {
         return L.marker(latlng, { icon: buildResourceNodeIcon(feature) });
     }
 
+    // Flora (#62) — each species gets its harvested-item icon.
+    if (feature.properties.category === 'flora') {
+        return L.marker(latlng, { icon: buildFloraIcon(feature) });
+    }
+
     return L.circleMarker(latlng, {
         radius: style.radius,
         color: style.color,
@@ -311,6 +324,30 @@ function buildResourceNodeIcon(feature) {
         html,
         className: 'fx-node-divicon',
         iconSize: [fb.size, fb.size],
+        iconAnchor: [half, half],
+    });
+}
+
+// Flora marker (#62). Smaller than resource nodes — flora are dense and we
+// don't want them to dominate the map when the layer is on. The icon is the
+// harvested item's wiki PNG; missing assets fall back to the swatch color so
+// the marker still shows.
+function buildFloraIcon(feature) {
+    const species = feature.properties.species ?? 'Desc_Berry_C';
+    const safeSpecies = String(species).replace(/[^A-Za-z0-9_]/g, '');
+    const size = 16;
+    const half = size / 2;
+    const fallbackColor = STYLE['flora'].color;
+    const html =
+        `<div class="fx-flora-icon" style="width:${size}px;height:${size}px;">
+            <img src="/assets/icons/items/${safeSpecies}.png"
+                 alt=""
+                 onerror="this.style.display='none';this.parentElement.classList.add('fx-flora-icon--missing');this.parentElement.style.backgroundColor='${fallbackColor}';" />
+         </div>`;
+    return L.divIcon({
+        html,
+        className: 'fx-flora-divicon',
+        iconSize: [size, size],
         iconAnchor: [half, half],
     });
 }
@@ -397,6 +434,11 @@ function resourceNodeExtent(featureCollection, padFraction) {
 
 function tooltipText(feature) {
     const p = feature.properties;
+    // Flora tooltip is just the friendly species name (e.g. "Paleberry") —
+    // the category prefix isn't useful since the icon already conveys it.
+    if (p.category === 'flora') {
+        return p.speciesName ?? shortName(p.species ?? p.kind);
+    }
     return `${p.category} · ${shortName(p.kind)}`;
 }
 

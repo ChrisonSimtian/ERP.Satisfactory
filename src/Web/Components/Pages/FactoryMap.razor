@@ -89,7 +89,9 @@ else if (loadedSummary is null)
 
             var rawLayers = await mapModule.InvokeAsync<LayerInfo[]>("initialize", mapElement, geojson, selfRef);
 
-            layers = rawLayers.Select(l => l with { Visible = true }).ToArray();
+            // JS returns `visible` per layer based on its STYLE.defaultOff
+            // flag — most categories default on, flora (#62) defaults off.
+            layers = rawLayers;
             var total = layers.Sum(l => l.Count);
             loadedSummary = $"{total:N0} features across {layers.Length} layers";
             errorMessage = null;

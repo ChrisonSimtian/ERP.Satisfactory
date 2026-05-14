@@ -1,0 +1,35 @@
+[
+  // Seed entries — the full vanilla flora dataset is in follow-up work; these
+  // exist so the Flora layer renders something on the map for development /
+  // verification. Coordinates are approximate. Replace with full wiki-sourced
+  // data when populating the dataset (see ../Data/README.md flora section).
+  //
+  // Schema:
+  //   x, y, z  — Unreal world coordinates in centimetres
+  //   species  — ItemId of the harvested item (Desc_Berry_C / Desc_Nut_C /
+  //              Desc_Mycelia_C / Desc_Shroom_C)
+
+  // --- Paleberry (Desc_Berry_C) — common across grass fields / forests
+  { "x":  120000, "y":  60000, "z": 100, "species": "Desc_Berry_C" },
+  { "x":  118500, "y":  61500, "z": 100, "species": "Desc_Berry_C" },
+  { "x":  -45000, "y": 175000, "z": 200, "species": "Desc_Berry_C" },
+  { "x":  -43200, "y": 176400, "z": 200, "species": "Desc_Berry_C" },
+  { "x":   85000, "y": -55000, "z": 150, "species": "Desc_Berry_C" },
+
+  // --- Beryl Nut (Desc_Nut_C) — clusters at the foot of trees
+  { "x":   65000, "y":  90000, "z": 100, "species": "Desc_Nut_C" },
+  { "x":   66200, "y":  91500, "z": 100, "species": "Desc_Nut_C" },
+  { "x":  150000, "y": -80000, "z": 200, "species": "Desc_Nut_C" },
+  { "x":  -90000, "y":  40000, "z": 100, "species": "Desc_Nut_C" },
+
+  // --- Bacon Agaric (Desc_Shroom_C) — northern forest / swamp biomes
+  { "x": -180000, "y":  20000, "z": 100, "species": "Desc_Shroom_C" },
+  { "x": -179000, "y":  21200, "z": 100, "species": "Desc_Shroom_C" },
+  { "x":  -25000, "y": 240000, "z": 150, "species": "Desc_Shroom_C" },
+
+  // --- Mycelia (Desc_Mycelia_C) — swamp / cave biomes
+  { "x":  -55000, "y": 220000, "z":  50, "species": "Desc_Mycelia_C" },
+  { "x":  -56500, "y": 218000, "z":  50, "species": "Desc_Mycelia_C" },
+  { "x":  220000, "y": 130000, "z": 100, "species": "Desc_Mycelia_C" },
+  { "x":  221500, "y": 131200, "z": 100, "species": "Desc_Mycelia_C" }
+]
