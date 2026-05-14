@@ -13,12 +13,14 @@ namespace Satisfactory.Save;
 public sealed class SaveFileReader
 {
     private readonly KnownResourceNodes _knownNodes;
+    private readonly ManualNodeOverrides _overrides;
 
-    public SaveFileReader() : this(KnownResourceNodes.LoadEmbedded()) { }
+    public SaveFileReader() : this(KnownResourceNodes.LoadEmbedded(), ManualNodeOverrides.Empty) { }
 
-    public SaveFileReader(KnownResourceNodes knownNodes)
+    public SaveFileReader(KnownResourceNodes knownNodes, ManualNodeOverrides overrides)
     {
         _knownNodes = knownNodes;
+        _overrides = overrides;
     }
 
     public LiveFactoryState Read(string savePath)
@@ -162,16 +164,17 @@ public sealed class SaveFileReader
             return new ResourceNode(reference, kind, Resource: null, NodePurity.Pure, position);
         }
 
-        // Mining nodes / fracking sites need a coordinate lookup against the
-        // bundled known-nodes dataset. Falls back to Unknown if no match.
+        // Mining nodes / fracking sites need a coordinate lookup. We consult
+        // user overrides first (per-machine file) then the bundled dataset.
+        // Either source can be empty; falls back to Unknown on full miss.
         if (kind is ERP.Domain.ResourceNodeKind.MiningNode
                  or ERP.Domain.ResourceNodeKind.FrackingCore
                  or ERP.Domain.ResourceNodeKind.FrackingSatellite)
         {
-            var known = _knownNodes.Lookup(position);
-            if (known is not null)
+            var hit = _overrides.Lookup(position) ?? _knownNodes.Lookup(position);
+            if (hit is not null)
             {
-                return new ResourceNode(reference, kind, new ItemId(known.Resource), known.Purity, position);
+                return new ResourceNode(reference, kind, new ItemId(hit.Resource), hit.Purity, position);
             }
         }
 

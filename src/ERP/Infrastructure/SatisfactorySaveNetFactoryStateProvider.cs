@@ -26,10 +26,11 @@ public sealed class SatisfactorySaveNetFactoryStateProvider : IFactoryStateProvi
 
     public SatisfactorySaveNetFactoryStateProvider(
         IOptions<FactoryStateOptions> options,
+        ManualNodeOverrides overrides,
         ILogger<SatisfactorySaveNetFactoryStateProvider> logger)
     {
         _options = options.Value;
-        _reader = new SaveFileReader();
+        _reader = new SaveFileReader(KnownResourceNodes.LoadEmbedded(), overrides);
         _logger = logger;
         (_state, _source) = LoadAtStartup();
     }
@@ -57,6 +58,13 @@ public sealed class SatisfactorySaveNetFactoryStateProvider : IFactoryStateProvi
             newState.Miners.Count, newState.Buildings.Count, newState.Belts.Count,
             newState.Generators.Count, newState.ResourceNodes.Count);
         return BuildStatus(newState, resolved);
+    }
+
+    public FactoryStateStatus Refresh()
+    {
+        if (_source is null) return GetStatus();
+        _state = _reader.Read(_source);
+        return BuildStatus(_state, _source);
     }
 
     private (LiveFactoryState State, string? Source) LoadAtStartup()

@@ -22,4 +22,11 @@ public interface IFactoryStateProvider
     /// warnings on partial parse) or throws on hard failure.
     /// </summary>
     FactoryStateStatus LoadFromPath(string savePath);
+
+    /// <summary>
+    /// Re-parses the currently-loaded save (if any) to pick up changes
+    /// from external sources like manual node overrides. No-op when
+    /// nothing is loaded. Returns the resulting status.
+    /// </summary>
+    FactoryStateStatus Refresh();
 }

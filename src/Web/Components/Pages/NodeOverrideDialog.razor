@@ -1,0 +1,136 @@
+@*
+    Manual node-override editor — opened from /factory/map when a resource-node
+    marker is clicked (#42 Option B). The caller passes the node's reference
+    (in-save PathName), and optionally the current resource + purity so the
+    dropdowns reflect existing state. Save calls PUT /factory/node-override
+    through PlannerApiClient; Clear deletes the override; Cancel just closes.
+*@
+
+@inject PlannerApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-2">
+            Reference: <code>@Reference</code>
+        </MudText>
+        <MudSelect T="string" @bind-Value="_resource"
+                   Label="Resource"
+                   Variant="Variant.Outlined"
+                   Dense="true"
+                   Margin="Margin.Dense"
+                   Class="mb-2">
+            @foreach (var (id, label) in KnownResources)
+            {
+                <MudSelectItem Value="@id">@label</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="string" @bind-Value="_purity"
+                   Label="Purity"
+                   Variant="Variant.Outlined"
+                   Dense="true"
+                   Margin="Margin.Dense">
+            <MudSelectItem Value="@("Impure")">Impure</MudSelectItem>
+            <MudSelectItem Value="@("Normal")">Normal</MudSelectItem>
+            <MudSelectItem Value="@("Pure")">Pure</MudSelectItem>
+        </MudSelect>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2 d-block">@_error</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudSpacer />
+        <MudButton OnClick="Clear" Color="Color.Error" Variant="Variant.Outlined" Disabled="_busy">
+            Clear override
+        </MudButton>
+        <MudButton OnClick="Save" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">
+            @(_busy ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter, EditorRequired] public string Reference { get; set; } = "";
+    [Parameter] public string? CurrentResource { get; set; }
+    [Parameter] public string? CurrentPurity { get; set; }
+
+    private string _resource = "Desc_OreIron_C";
+    private string _purity = "Normal";
+    private string? _error;
+    private bool _busy;
+
+    // Vanilla solid/liquid resources that BP_ResourceNode_C / BP_FrackingSatellite_C
+    // / BP_FrackingCore_C can carry. Geysers don't end up in this dialog
+    // (they're always Pure Geothermal — handled at parse time).
+    private static readonly (string Id, string Label)[] KnownResources = new[]
+    {
+        ("Desc_OreIron_C",    "Iron Ore"),
+        ("Desc_OreCopper_C",  "Copper Ore"),
+        ("Desc_Coal_C",       "Coal"),
+        ("Desc_Stone_C",      "Limestone"),
+        ("Desc_LiquidOil_C",  "Crude Oil"),
+        ("Desc_OreGold_C",    "Caterium Ore"),
+        ("Desc_Sulfur_C",     "Sulfur"),
+        ("Desc_RawQuartz_C",  "Raw Quartz"),
+        ("Desc_OreBauxite_C", "Bauxite"),
+        ("Desc_OreUranium_C", "Uranium"),
+        ("Desc_SAM_C",        "SAM"),
+        ("Desc_NitrogenGas_C", "Nitrogen Gas"),
+        ("Desc_Water_C",      "Water"),
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(CurrentResource)) _resource = CurrentResource;
+        if (!string.IsNullOrEmpty(CurrentPurity) && CurrentPurity != "Unknown") _purity = CurrentPurity;
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Api.SetNodeOverrideAsync(Reference, _resource, _purity);
+            if (result.Success)
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                _error = result.Error ?? "Save failed.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Clear()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Api.ClearNodeOverrideAsync(Reference);
+            if (result.Success)
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                _error = result.Error ?? "Clear failed.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
