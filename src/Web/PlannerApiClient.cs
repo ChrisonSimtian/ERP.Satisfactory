@@ -88,6 +88,36 @@ public class PlannerApiClient(HttpClient httpClient)
         var error = await response.Content.ReadAsStringAsync(ct);
         return new NodeOverrideResult(false, error);
     }
+
+    // ---- Saved plans & share links (#80) -----------------------------------
+
+    public async Task<SavedPlanResponse?> SavePlanAsync(SavePlanInput body, CancellationToken ct = default)
+    {
+        var response = await httpClient.PostAsJsonAsync("/plans", body, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SavedPlanResponse>(ct);
+    }
+
+    public async Task<SavedPlanResponse?> GetSharedPlanAsync(string token, CancellationToken ct = default)
+    {
+        var response = await httpClient.GetAsync($"/plans/shared/{Uri.EscapeDataString(token)}", ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SavedPlanResponse>(ct);
+    }
+
+    public async Task<ShareTokenResponse?> CreateShareTokenAsync(Guid planId, CancellationToken ct = default)
+    {
+        var response = await httpClient.PostAsync($"/plans/{planId}/share", content: null, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ShareTokenResponse>(ct);
+    }
+
+    public async Task<bool> RevokeShareTokenAsync(Guid planId, string token, CancellationToken ct = default)
+    {
+        var response = await httpClient.DeleteAsync($"/plans/{planId}/share/{Uri.EscapeDataString(token)}", ct);
+        return response.IsSuccessStatusCode;
+    }
 }
 
 public sealed record CatalogItem(string Id, string Name);
@@ -169,3 +199,17 @@ public sealed record FactoryIngestResult(bool Success, FactoryStateViewModel? St
 public sealed record DetectedSaveViewModel(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);
 
 public sealed record NodeOverrideResult(bool Success, string? Error);
+
+// ---- Saved plans & share links (#80) ---------------------------------------
+
+public sealed record SavePlanInput(string Name, IReadOnlyList<TargetInput> Targets, IReadOnlyList<AvailabilityInput> Available);
+
+public sealed record SavedPlanResponse(
+    Guid Id,
+    string Name,
+    IReadOnlyList<TargetInput> Targets,
+    IReadOnlyList<AvailabilityInput> Available,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc);
+
+public sealed record ShareTokenResponse(string Token, string Url, DateTime CreatedUtc, DateTime? ExpiresUtc);

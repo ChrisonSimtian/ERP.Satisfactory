@@ -24,6 +24,9 @@ builder.Services.AddErpInfrastructure(builder.Configuration);
 // Connection string lives in `ConnectionStrings:Plans`.
 builder.Services.AddErpPersistence(builder.Configuration);
 
+// Registered as a singleton so endpoints + tests can swap in a fake clock.
+builder.Services.AddSingleton(TimeProvider.System);
+
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -218,9 +221,121 @@ app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvid
     return Results.Ok(PlanDto.From(plan, catalog));
 });
 
+// ----- Saved plans & share links (#80) --------------------------------------
+// Minimal plan persistence surface — we save the inputs of a planner session
+// so it can be shared via a token-protected URL. The planner UI invokes
+// POST /plans to capture the current sources/sinks; /plans/{id}/share mints a
+// share token; /plans/shared/{token} is the public read-only endpoint that
+// the share URL resolves to.
+
+app.MapPost("/plans", async (
+    SavePlanRequest request,
+    IPlanRepository plans,
+    TimeProvider clock,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Name))
+        return Results.BadRequest(new { error = "Name is required." });
+
+    var now = clock.GetUtcNow().UtcDateTime;
+    var plan = new SavedPlan(
+        id: Guid.NewGuid(),
+        name: request.Name,
+        targets: request.Targets.Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
+        available: request.Available.Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList(),
+        createdUtc: now,
+        updatedUtc: now);
+
+    await plans.AddAsync(plan, ct);
+    await plans.SaveChangesAsync(ct);
+
+    return Results.Created($"/plans/{plan.Id}", SavedPlanView.From(plan));
+});
+
+app.MapGet("/plans/{id:guid}", async (Guid id, IPlanRepository plans, CancellationToken ct) =>
+{
+    var plan = await plans.GetAsync(id, ct);
+    return plan is null
+        ? Results.NotFound()
+        : Results.Ok(SavedPlanView.From(plan));
+});
+
+app.MapPost("/plans/{id:guid}/share", async (
+    Guid id,
+    IPlanRepository plans,
+    IPlanShareRepository shares,
+    TimeProvider clock,
+    HttpRequest http,
+    CancellationToken ct) =>
+{
+    var plan = await plans.GetAsync(id, ct);
+    if (plan is null) return Results.NotFound();
+
+    var token = ShareTokenGenerator.NewToken();
+    var entity = new PlanShareToken(token, plan.Id, clock.GetUtcNow().UtcDateTime);
+    await shares.AddAsync(entity, ct);
+    await shares.SaveChangesAsync(ct);
+
+    // Build an absolute URL so the planner UI can present a one-click copy.
+    // Trusts the incoming Host/Scheme — fine for an OSS local-first app, and
+    // any hosted deployment terminates TLS in front of this layer anyway.
+    var baseUrl = $"{http.Scheme}://{http.Host}";
+    return Results.Ok(new ShareTokenView(token, $"{baseUrl}/plans/shared/{token}", entity.CreatedUtc, entity.ExpiresUtc));
+});
+
+app.MapDelete("/plans/{id:guid}/share/{token}", async (
+    Guid id,
+    string token,
+    IPlanShareRepository shares,
+    TimeProvider clock,
+    CancellationToken ct) =>
+{
+    var entity = await shares.GetAsync(token, ct);
+    if (entity is null || entity.PlanId != id) return Results.NotFound();
+
+    entity.Revoke(clock.GetUtcNow().UtcDateTime);
+    await shares.SaveChangesAsync(ct);
+    return Results.NoContent();
+});
+
+app.MapGet("/plans/shared/{token}", async (
+    string token,
+    IPlanRepository plans,
+    IPlanShareRepository shares,
+    TimeProvider clock,
+    CancellationToken ct) =>
+{
+    var entity = await shares.GetAsync(token, ct);
+    if (entity is null || !entity.IsActive(clock.GetUtcNow().UtcDateTime))
+        return Results.NotFound();
+
+    var plan = await plans.GetAsync(entity.PlanId, ct);
+    return plan is null
+        ? Results.NotFound()
+        : Results.Ok(SavedPlanView.From(plan));
+});
+
 app.MapDefaultEndpoints();
 
 app.Run();
+
+/// <summary>
+/// 16-char URL-safe token. Base64-url over 12 random bytes gives 16
+/// alphanumeric (+ '-' / '_') chars and ~96 bits of entropy — far more than
+/// enough for an unguessable share link without bloating the URL.
+/// </summary>
+internal static class ShareTokenGenerator
+{
+    public static string NewToken()
+    {
+        Span<byte> bytes = stackalloc byte[12];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+    }
+}
 
 public sealed record ItemDto(string Id, string Name);
 
@@ -464,6 +579,39 @@ public sealed record FactoryStateGeoJson(
 public sealed record TargetDto(string ItemId, decimal ItemsPerMinute);
 public sealed record AvailabilityDto(string ItemId, decimal ItemsPerMinute);
 public sealed record PlanRequest(IReadOnlyList<TargetDto> Targets, IReadOnlyList<AvailabilityDto> Available);
+
+/// <summary>Body for POST /plans (saves the current planner inputs under a name).</summary>
+public sealed record SavePlanRequest(
+    string Name,
+    IReadOnlyList<TargetDto> Targets,
+    IReadOnlyList<AvailabilityDto> Available);
+
+public sealed record SavedPlanView(
+    Guid Id,
+    string Name,
+    IReadOnlyList<TargetDto> Targets,
+    IReadOnlyList<AvailabilityDto> Available,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc)
+{
+    public static SavedPlanView From(SavedPlan plan) => new(
+        plan.Id,
+        plan.Name,
+        plan.Targets.Select(t => new TargetDto(t.Item.Value, t.ItemsPerMinute)).ToList(),
+        plan.Available.Select(a => new AvailabilityDto(a.Item.Value, a.ItemsPerMinute)).ToList(),
+        plan.CreatedUtc,
+        plan.UpdatedUtc);
+}
+
+public sealed record ShareTokenView(string Token, string Url, DateTime CreatedUtc, DateTime? ExpiresUtc);
+
+/// <summary>
+/// Public Program shim so <c>WebApplicationFactory&lt;Program&gt;</c> in the
+/// integration-test project can target this entry point — without it the
+/// implicit <c>Program</c> class generated from top-level statements is
+/// internal and the factory can't see it.
+/// </summary>
+public partial class Program { }
 
 public sealed record AmountDto(string ItemId, string ItemName, decimal ItemsPerMinute);
 public sealed record StepDto(

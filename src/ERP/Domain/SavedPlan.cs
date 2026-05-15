@@ -19,10 +19,18 @@ namespace ERP.Domain;
 /// </summary>
 public sealed class SavedPlan
 {
+    // Backing fields are concrete List<T> rather than IReadOnlyList<T> so EF
+    // Core's collection accessor can mutate them when materialising owned
+    // collections. A bare `= []` default produces a fixed-size array, which
+    // EF picks up via the property and then fails on .Add() during hydration
+    // (NotSupportedException: Collection was of a fixed size).
+    private List<ProductionTarget> _targets = new();
+    private List<ResourceAvailability> _available = new();
+
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
-    public IReadOnlyList<ProductionTarget> Targets { get; private set; } = [];
-    public IReadOnlyList<ResourceAvailability> Available { get; private set; } = [];
+    public IReadOnlyList<ProductionTarget> Targets => _targets;
+    public IReadOnlyList<ResourceAvailability> Available => _available;
     public DateTime CreatedUtc { get; private set; }
     public DateTime UpdatedUtc { get; private set; }
 
@@ -42,8 +50,8 @@ public sealed class SavedPlan
 
         Id = id;
         Name = name;
-        Targets = targets;
-        Available = available;
+        _targets = targets.ToList();
+        _available = available.ToList();
         CreatedUtc = createdUtc;
         UpdatedUtc = updatedUtc;
     }
@@ -60,8 +68,8 @@ public sealed class SavedPlan
         IReadOnlyList<ResourceAvailability> available,
         DateTime nowUtc)
     {
-        Targets = targets;
-        Available = available;
+        _targets = targets.ToList();
+        _available = available.ToList();
         UpdatedUtc = nowUtc;
     }
 }

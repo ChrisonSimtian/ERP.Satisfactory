@@ -27,9 +27,58 @@ public class PlanDbContext : DbContext
 
     public DbSet<SavedPlan> Plans => Set<SavedPlan>();
 
+    public DbSet<PlanShareToken> PlanShareTokens => Set<PlanShareToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PlanDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AssignOwnedOrdinals();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AssignOwnedOrdinals();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// The two owned collections on <see cref="SavedPlan"/> (Targets, Available)
+    /// key on (PlanId, Ordinal) where Ordinal is a shadow property. EF leaves
+    /// it NULL on insert across both SQLite and Postgres, and SQLite refuses
+    /// the row (no auto-increment for composite keys). Populating it here —
+    /// per-owner, in list order — keeps the writes deterministic across
+    /// providers without forcing the domain to expose the ordinal.
+    /// </summary>
+    private void AssignOwnedOrdinals()
+    {
+        ChangeTracker.DetectChanges();
+
+        // Walk every tracked entry once and assign ordinals to anything that
+        // owns a shadow `Ordinal` property — this covers both Targets and
+        // Available without naming them explicitly. Counters are keyed by
+        // (owner-plan-id, entity-clr-type) so the two collections under one
+        // plan number independently.
+        var counters = new Dictionary<(Guid PlanId, Type Type), int>();
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State != EntityState.Added) continue;
+            if (entry.Metadata.FindProperty("Ordinal") is null) continue;
+
+            var planIdProp = entry.Property("PlanId");
+            if (planIdProp.CurrentValue is not Guid planId) continue;
+
+            var key = (planId, entry.Entity.GetType());
+            counters.TryGetValue(key, out var next);
+            var ordinalProperty = entry.Property("Ordinal");
+            ordinalProperty.CurrentValue = next;
+            ordinalProperty.IsTemporary = false;
+            counters[key] = next + 1;
+        }
     }
 }

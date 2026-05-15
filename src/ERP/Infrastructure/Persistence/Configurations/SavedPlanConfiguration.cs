@@ -38,7 +38,12 @@ internal sealed class SavedPlanConfiguration : IEntityTypeConfiguration<SavedPla
             {
                 targets.ToTable("PlanTargets");
                 targets.WithOwner().HasForeignKey("PlanId");
-                targets.Property<int>("Ordinal");
+                // ValueGeneratedNever: the ordinal is assigned by the
+                // PlanDbContext.SaveChanges override based on list position —
+                // owned collections under EF Core 10 default this property to
+                // store-generated, which works on Postgres (identity) but not
+                // SQLite (no auto-increment for composite-key columns).
+                targets.Property<int>("Ordinal").ValueGeneratedNever();
                 targets.HasKey("PlanId", "Ordinal");
 
                 targets.Property(t => t.Item)
@@ -57,7 +62,9 @@ internal sealed class SavedPlanConfiguration : IEntityTypeConfiguration<SavedPla
             {
                 avail.ToTable("PlanAvailability");
                 avail.WithOwner().HasForeignKey("PlanId");
-                avail.Property<int>("Ordinal");
+                // See note on Targets — explicit ordinal assignment in the
+                // SaveChanges override, so disable EF's store-generated default.
+                avail.Property<int>("Ordinal").ValueGeneratedNever();
                 avail.HasKey("PlanId", "Ordinal");
 
                 avail.Property(a => a.Item)
@@ -70,11 +77,16 @@ internal sealed class SavedPlanConfiguration : IEntityTypeConfiguration<SavedPla
                     .HasColumnType("decimal(18,4)");
             });
 
-        // The aggregate exposes its child lists as IReadOnlyList<T> with private setters.
-        // Point EF at the backing fields so it can hydrate them on materialisation.
+        // SavedPlan exposes its child lists as read-only views over private
+        // List<T> backing fields (_targets, _available). Field-mode lets EF
+        // hydrate those mutable backings during materialisation; using the
+        // public IReadOnlyList property would route through SZArrayHelper.Add
+        // for the parameterless-ctor case and fail with a fixed-size error.
         builder.Navigation(nameof(SavedPlan.Targets))
-            .UsePropertyAccessMode(PropertyAccessMode.Property);
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasField("_targets");
         builder.Navigation(nameof(SavedPlan.Available))
-            .UsePropertyAccessMode(PropertyAccessMode.Property);
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasField("_available");
     }
 }
