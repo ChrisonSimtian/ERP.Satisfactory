@@ -88,6 +88,36 @@ public class PlannerApiClient(HttpClient httpClient)
         var error = await response.Content.ReadAsStringAsync(ct);
         return new NodeOverrideResult(false, error);
     }
+
+    // ----- Saved plans (issue #77) ------------------------------------------
+    // CRUD around the EF-backed /plans endpoints. Stores only the planner
+    // inputs (targets + available); the computed plan is recomputed on load.
+
+    public async Task<SavedPlanSummary[]> ListSavedPlansAsync(CancellationToken ct = default) =>
+        await httpClient.GetFromJsonAsync<SavedPlanSummary[]>("/plans", ct) ?? [];
+
+    public Task<SavedPlanDetail?> GetSavedPlanAsync(Guid id, CancellationToken ct = default) =>
+        httpClient.GetFromJsonAsync<SavedPlanDetail>($"/plans/{id}", ct);
+
+    public async Task<SavedPlanDetail?> CreateSavedPlanAsync(SavePlanInput input, CancellationToken ct = default)
+    {
+        var response = await httpClient.PostAsJsonAsync("/plans", input, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SavedPlanDetail>(ct);
+    }
+
+    public async Task<SavedPlanDetail?> UpdateSavedPlanAsync(Guid id, SavePlanInput input, CancellationToken ct = default)
+    {
+        var response = await httpClient.PutAsJsonAsync($"/plans/{id}", input, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SavedPlanDetail>(ct);
+    }
+
+    public async Task<bool> DeleteSavedPlanAsync(Guid id, CancellationToken ct = default)
+    {
+        var response = await httpClient.DeleteAsync($"/plans/{id}", ct);
+        return response.IsSuccessStatusCode;
+    }
 }
 
 public sealed record CatalogItem(string Id, string Name);
@@ -169,3 +199,26 @@ public sealed record FactoryIngestResult(bool Success, FactoryStateViewModel? St
 public sealed record DetectedSaveViewModel(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);
 
 public sealed record NodeOverrideResult(bool Success, string? Error);
+
+// ----- Saved plan wire DTOs (issue #77) -------------------------------------
+
+public sealed record SavePlanInput(
+    string Name,
+    IReadOnlyList<TargetInput> Targets,
+    IReadOnlyList<AvailabilityInput> Available);
+
+public sealed record SavedPlanSummary(
+    Guid Id,
+    string Name,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc,
+    int TargetCount,
+    int AvailableCount);
+
+public sealed record SavedPlanDetail(
+    Guid Id,
+    string Name,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc,
+    IReadOnlyList<TargetInput> Targets,
+    IReadOnlyList<AvailabilityInput> Available);
