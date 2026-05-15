@@ -30,7 +30,10 @@ jobs:
   # ---------------------------------------------------------------------------
   lint:
     name: Lint (dotnet format)
-    runs-on: ubuntu-latest
+    # `self-hosted` rather than `ubuntu-latest` so the lint-pool comes off
+    # our own runner. `setup-dotnet@v4` provides .NET on demand so no
+    # additional host setup is needed beyond the runner agent itself.
+    runs-on: self-hosted
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -64,7 +67,10 @@ jobs:
   # ---------------------------------------------------------------------------
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    # Self-hosted — `dotnet test` only needs the SDK that `setup-dotnet@v4`
+    # installs. The CI test slice (`TestNoUi`) excludes Playwright so no
+    # extra host packages are needed.
+    runs-on: self-hosted
     timeout-minutes: 30
 
     steps:
@@ -112,7 +118,10 @@ jobs:
   # ---------------------------------------------------------------------------
   migration-drift:
     name: Migration drift (SQLite + Postgres)
-    runs-on: ubuntu-latest
+    # Self-hosted — `dotnet ef migrations has-pending-model-changes` reads
+    # the migrations snapshot offline, no live DB needed. SQLite + Postgres
+    # providers both ship in the SDK packages, nothing else to install.
+    runs-on: self-hosted
     timeout-minutes: 15
 
     steps:
@@ -148,6 +157,10 @@ jobs:
   # ---------------------------------------------------------------------------
   postgres-smoke:
     name: Postgres migration smoke
+    # Stays on `ubuntu-latest` — the `services: postgres:16` block needs
+    # Docker on the host and the GH-hosted runners already have it. Move
+    # this to self-hosted only after Docker (and the `psql` CLI for the
+    # diagnostic step) is provisioned on that host.
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -205,7 +218,9 @@ jobs:
   publish-test-results:
     name: Publish test results
     needs: build-and-test
-    runs-on: ubuntu-latest
+    # Self-hosted — the action is a Node 20+ runner-side step; nothing on
+    # the host beyond Node which the agent already provides.
+    runs-on: self-hosted
     if: always()
     permissions:
       contents: read
@@ -235,6 +250,9 @@ jobs:
   release:
     name: Release
     needs: [lint, build-and-test, migration-drift, postgres-smoke]
+    # Stays on `ubuntu-latest` — `./build.sh Release` shells out to the
+    # `gh` CLI which the GH-hosted runners ship preinstalled. Move to
+    # self-hosted once `gh` is provisioned on that host.
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 15
