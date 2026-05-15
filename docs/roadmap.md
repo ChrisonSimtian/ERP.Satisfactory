@@ -112,6 +112,108 @@ all of the above.
   (e.g., a Postgres for hosted persistence) registers via AppHost, not
   parallel deployment scripts.
 
+## V2 platform direction
+
+Eventually the goal is to graduate from "ERP for Satisfactory" to "ERP for
+factory games" — a generic platform that other games plug into. Two big
+threads tee this up: multi-game support and self-hosted deployment.
+
+### Multi-game support
+
+[ADR-0010](adr/0010-game-agnostic-catalogue-contract.md) committed the core
+to a game-agnostic catalogue contract, which means the LP solver, planner UI,
+graph view, and persistence are already game-shaped not Satisfactory-shaped.
+What's not yet generic:
+
+- **Save / live-state ingestion** — `Satisfactory.Save` is the parser; in v2
+  it becomes one of several adapters under a `Game.Save` contract. Captain
+  of Industry uses a different save format; Dyson Sphere Program uses
+  another. Each gets its own adapter.
+- **World map / coordinates** — `/factory/map` assumes Satisfactory's tile
+  layout and ore-node placement. CoI is 2D top-down; DSP is per-planet
+  spherical. The map page needs a per-game renderer.
+- **Per-game catalogue source** — ADR-0011 wires the Satisfactory Docs.json
+  path. Each game needs its own catalogue loader (CoI ships JSON; DSP needs
+  a community-maintained data dump).
+- **Building / recipe specifics** — Mk-levels, fluids, power, logistics —
+  every game models these differently. Should already be subsumed by the
+  catalogue contract, but cross-game testing will surface edge cases.
+
+**Pilot games for v2:**
+- **Satisfactory** — keep working, regression-tested against the current
+  feature set.
+- **Captain of Industry** — the second-easiest. Tile-based 2D map, clear
+  recipe graph, JSON-exportable save data.
+- **Dyson Sphere Program** — the stretch goal. Spherical planets, mod-heavy
+  ecosystem, less mature parser tooling.
+
+**Likely refactors:**
+- Rename / re-namespace: `ERP.Satisfactory` → `ERP.Core` + `ERP.Games.Satisfactory`
+  + `ERP.Games.CaptainOfIndustry` + `ERP.Games.DysonSphere`. Repo stays one;
+  per-game projects under `src/Games/`.
+- New ADR: "Game adapter contract" — what each adapter must implement
+  (`ICatalogueLoader`, `ISaveParser`, `IWorldMapRenderer`, optional
+  `ILiveStateProvider`).
+- The picker that lands in setup wizard (#85) expands to "which game?".
+
+### Self-hosted deployment
+
+The platform runs on a developer laptop today. v2 makes it deployable to a
+homelab — specifically Chris's Proxmox cluster — with two viable shapes:
+
+1. **Docker containers via CI/CD.** Build container images per service
+   (ApiService, Web) on every merge to main. Push to GHCR. Deploy via
+   docker-compose on a Proxmox VM. Aspire's manifest can already export a
+   compose file — that's the on-ramp.
+2. **Native installer on an LXC container.** Single-file .NET 10 publish
+   (`dotnet publish -p:PublishSingleFile=true`) into an LXC. Simpler for
+   "run it next to the game on the same machine"; no Docker daemon. Trade-off
+   is per-host install vs. orchestrated cluster.
+
+**Deployment topology options:**
+- **Hosted central + game-local sidecar** — the planner runs centrally
+  (Proxmox cluster); each player runs a tiny sidecar on their game machine
+  that streams save / live state up. The current Node sidecar (ADR-0012)
+  already prototypes this shape.
+- **Pure self-host** — single-user installs the whole stack next to their
+  game. Persistence is local SQLite (ADR-0018 default).
+- **Hosted multi-tenant** — public-facing instance with per-user plans.
+  Bigger lift: needs auth, isolation, rate limits.
+
+**IaC choice (TBD):**
+- **Terraform + Proxmox provider** (Telmate / bpg) — manages VMs / LXCs as
+  code; mature; same pattern as cloud IaC.
+- **Pulumi** — more code-like, .NET-friendly which fits the stack.
+- **Ansible** — config-management oriented, fine for LXC installer scripting.
+- Probably terraform for VM/LXC provisioning + ansible for app config.
+  Two-layer IaC is the homelab norm.
+
+**Persistence implications:**
+- Multi-tenant requires user identity on every aggregate. `SavedPlan` gains
+  `OwnerId`. Migration adds a NOT NULL with backfill default.
+- Per-game means `SavedPlan` also gains `GameId`. The plan list filters by
+  user × game.
+- Postgres becomes the default for hosted (#71 already supports it via config);
+  SQLite stays for the local-only mode.
+
+**Auth (only if multi-tenant):**
+- Out of scope for self-host single-user.
+- For the hosted variant: OIDC via Keycloak (self-hostable, fits Proxmox
+  homelab) or GitHub OAuth (low setup). Auth ADR comes when this becomes real.
+
+### Sequencing
+
+The two threads can land independently:
+- Multi-game first: refactor under ADR-0010, ship the second game (probably
+  CoI), then DSP.
+- Self-hosted first: CI/CD container build → docker-compose on Proxmox →
+  terraform/ansible for repeatability → multi-tenant later if demand exists.
+
+Most likely real order: **CI/CD + container build first** (small, unblocks
+both "self-host" and "hosted-central+sidecar"), then **multi-game refactor**
+(big, but no deployment dependency), then auth + multi-tenant if the project
+ever needs them.
+
 ## When to update this doc
 
 When a roadmap item gets concrete enough to file as an issue, move it from
