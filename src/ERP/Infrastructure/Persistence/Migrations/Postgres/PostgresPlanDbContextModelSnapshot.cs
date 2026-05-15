@@ -85,10 +85,7 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
                                 .HasColumnType("uuid");
 
                             b1.Property<int>("Ordinal")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Ordinal"));
 
                             b1.Property<string>("Item")
                                 .IsRequired()
@@ -113,10 +110,7 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
                                 .HasColumnType("uuid");
 
                             b1.Property<int>("Ordinal")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Ordinal"));
 
                             b1.Property<string>("Item")
                                 .IsRequired()

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ERP.Infrastructure.Persistence.Migrations.Sqlite
 {
     [DbContext(typeof(SqlitePlanDbContext))]
-    [Migration("20260515092004_AddPlanShareTokens")]
+    [Migration("20260515122452_AddPlanShareTokens")]
     partial class AddPlanShareTokens
     {
         /// <inheritdoc />
@@ -83,7 +83,6 @@ namespace ERP.Infrastructure.Persistence.Migrations.Sqlite
                                 .HasColumnType("TEXT");
 
                             b1.Property<int>("Ordinal")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
 
                             b1.Property<string>("Item")
@@ -109,7 +108,6 @@ namespace ERP.Infrastructure.Persistence.Migrations.Sqlite
                                 .HasColumnType("TEXT");
 
                             b1.Property<int>("Ordinal")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
 
                             b1.Property<string>("Item")
