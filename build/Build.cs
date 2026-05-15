@@ -154,10 +154,14 @@ class Build : NukeBuild
             void Check(string contextName, params (string Key, string Value)[] extraEnv)
             {
                 Log.Information("Checking pending model changes for {Context}", contextName);
+                // --configuration matches what Compile produced so --no-build can find
+                // the right bin/<Configuration>/net10.0/ApiService.deps.json. Without
+                // this, ef defaults to Debug while CI builds Release and the lookup fails.
                 var args = $"ef migrations has-pending-model-changes " +
                            $"--project \"{persistenceProject}\" " +
                            $"--startup-project \"{startupProject}\" " +
                            $"--context {contextName} " +
+                           $"--configuration {Configuration} " +
                            $"--no-build";
 
                 var env = new Dictionary<string, string>(EnvironmentInfo.Variables);
@@ -219,6 +223,7 @@ class Build : NukeBuild
                        $"--project \"{persistenceProject}\" " +
                        $"--startup-project \"{startupProject}\" " +
                        $"--context PostgresPlanDbContext " +
+                       $"--configuration {Configuration} " +
                        $"--no-build";
 
             var process = ProcessTasks.StartProcess(
