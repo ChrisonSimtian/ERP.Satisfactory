@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ERP.Infrastructure.Persistence.Migrations.Sqlite
 {
     [DbContext(typeof(SqlitePlanDbContext))]
-    [Migration("20260515122452_AddPlanShareTokens")]
+    [Migration("20260515130945_AddPlanShareTokens")]
     partial class AddPlanShareTokens
     {
         /// <inheritdoc />
@@ -79,52 +79,48 @@ namespace ERP.Infrastructure.Persistence.Migrations.Sqlite
                 {
                     b.OwnsMany("ERP.Domain.ProductionTarget", "Targets", b1 =>
                         {
-                            b1.Property<Guid>("PlanId")
-                                .HasColumnType("TEXT");
+                            b1.Property<Guid>("SavedPlanId");
 
-                            b1.Property<int>("Ordinal")
-                                .HasColumnType("INTEGER");
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
 
                             b1.Property<string>("Item")
-                                .IsRequired()
-                                .HasMaxLength(200)
-                                .HasColumnType("TEXT")
-                                .HasColumnName("ItemId");
+                                .IsRequired();
 
                             b1.Property<decimal>("ItemsPerMinute")
                                 .HasColumnType("decimal(18,4)");
 
-                            b1.HasKey("PlanId", "Ordinal");
+                            b1.HasKey("SavedPlanId", "__synthesizedOrdinal");
 
-                            b1.ToTable("PlanTargets", (string)null);
+                            b1.ToTable("Plans");
+
+                            b1.ToJson("Targets");
 
                             b1.WithOwner()
-                                .HasForeignKey("PlanId");
+                                .HasForeignKey("SavedPlanId");
                         });
 
                     b.OwnsMany("ERP.Domain.ResourceAvailability", "Available", b1 =>
                         {
-                            b1.Property<Guid>("PlanId")
-                                .HasColumnType("TEXT");
+                            b1.Property<Guid>("SavedPlanId");
 
-                            b1.Property<int>("Ordinal")
-                                .HasColumnType("INTEGER");
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
 
                             b1.Property<string>("Item")
-                                .IsRequired()
-                                .HasMaxLength(200)
-                                .HasColumnType("TEXT")
-                                .HasColumnName("ItemId");
+                                .IsRequired();
 
                             b1.Property<decimal>("ItemsPerMinute")
                                 .HasColumnType("decimal(18,4)");
 
-                            b1.HasKey("PlanId", "Ordinal");
+                            b1.HasKey("SavedPlanId", "__synthesizedOrdinal");
 
-                            b1.ToTable("PlanAvailability", (string)null);
+                            b1.ToTable("Plans");
+
+                            b1.ToJson("Available");
 
                             b1.WithOwner()
-                                .HasForeignKey("PlanId");
+                                .HasForeignKey("SavedPlanId");
                         });
 
                     b.Navigation("Available");

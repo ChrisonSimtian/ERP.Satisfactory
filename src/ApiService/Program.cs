@@ -24,21 +24,18 @@ builder.Services.AddErpInfrastructure(builder.Configuration);
 // Connection string lives in `ConnectionStrings:Plans`.
 builder.Services.AddErpPersistence(builder.Configuration);
 
-// Registered as a singleton so endpoints + tests can swap in a fake clock.
-builder.Services.AddSingleton(TimeProvider.System);
-
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// In Development, apply pending plan-storage migrations on startup so the
-// SQLite default Just Works on a fresh checkout. Production / hosted deploys
-// should run `dotnet ef database update` (or equivalent) out-of-band to keep
-// schema changes explicit.
-if (app.Environment.IsDevelopment())
+// Apply pending plan-storage migrations on startup so the SQLite default Just
+// Works on a fresh checkout and so saved plans survive process restarts (#77).
+// Unconditional: the only currently-supported runtime layout is the embedded
+// SQLite file alongside the app. If/when a hosted Postgres deploy lands, gate
+// this on environment (or move to a Wolverine startup migration).
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
     db.Database.Migrate();
 }
@@ -387,44 +384,72 @@ app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvid
     return Results.Ok(PlanDto.From(plan, catalog));
 });
 
-// ----- Saved plans & share links (#80) --------------------------------------
-// Minimal plan persistence surface — we save the inputs of a planner session
-// so it can be shared via a token-protected URL. The planner UI invokes
-// POST /plans to capture the current sources/sinks; /plans/{id}/share mints a
-// share token; /plans/shared/{token} is the public read-only endpoint that
-// the share URL resolves to.
+// ---- Saved plans (ADR-0018, issue #77) -------------------------------------
+// Persist the user's planner inputs (targets + available resources) so they
+// survive a process restart. Computed plans are NOT persisted — they're a pure
+// function of (catalogue, targets, available) and re-running the planner on
+// load keeps results valid across catalogue updates.
 
-app.MapPost("/plans", async (
-    SavePlanRequest request,
-    IPlanRepository plans,
-    TimeProvider clock,
-    CancellationToken ct) =>
+app.MapGet("/plans", async (IPlanRepository repo, CancellationToken ct) =>
+{
+    var plans = await repo.ListAsync(ct);
+    return Results.Ok(plans.Select(SavedPlanSummaryDto.From).ToList());
+});
+
+app.MapGet("/plans/{id:guid}", async (Guid id, IPlanRepository repo, CancellationToken ct) =>
+{
+    var plan = await repo.GetAsync(id, ct);
+    return plan is null ? Results.NotFound() : Results.Ok(SavedPlanDto.From(plan));
+});
+
+app.MapPost("/plans", async (SavePlanRequest request, IPlanRepository repo, TimeProvider clock, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Name))
         return Results.BadRequest(new { error = "Name is required." });
 
-    var now = clock.GetUtcNow().UtcDateTime;
+    var nowUtc = clock.GetUtcNow().UtcDateTime;
     var plan = new SavedPlan(
         id: Guid.NewGuid(),
-        name: request.Name,
-        targets: request.Targets.Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
-        available: request.Available.Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList(),
-        createdUtc: now,
-        updatedUtc: now);
+        name: request.Name.Trim(),
+        targets: (request.Targets ?? []).Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
+        available: (request.Available ?? []).Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList(),
+        createdUtc: nowUtc,
+        updatedUtc: nowUtc);
 
-    await plans.AddAsync(plan, ct);
-    await plans.SaveChangesAsync(ct);
-
-    return Results.Created($"/plans/{plan.Id}", SavedPlanView.From(plan));
+    await repo.AddAsync(plan, ct);
+    await repo.SaveChangesAsync(ct);
+    return Results.Created($"/plans/{plan.Id}", SavedPlanDto.From(plan));
 });
 
-app.MapGet("/plans/{id:guid}", async (Guid id, IPlanRepository plans, CancellationToken ct) =>
+app.MapPut("/plans/{id:guid}", async (Guid id, SavePlanRequest request, IPlanRepository repo, TimeProvider clock, CancellationToken ct) =>
 {
-    var plan = await plans.GetAsync(id, ct);
-    return plan is null
-        ? Results.NotFound()
-        : Results.Ok(SavedPlanView.From(plan));
+    if (string.IsNullOrWhiteSpace(request.Name))
+        return Results.BadRequest(new { error = "Name is required." });
+
+    var existing = await repo.GetAsync(id, ct);
+    if (existing is null) return Results.NotFound();
+
+    var nowUtc = clock.GetUtcNow().UtcDateTime;
+    existing.Rename(request.Name.Trim(), nowUtc);
+    existing.Replace(
+        (request.Targets ?? []).Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
+        (request.Available ?? []).Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList(),
+        nowUtc);
+
+    await repo.UpdateAsync(existing, ct);
+    await repo.SaveChangesAsync(ct);
+    return Results.Ok(SavedPlanDto.From(existing));
 });
+
+app.MapDelete("/plans/{id:guid}", async (Guid id, IPlanRepository repo, CancellationToken ct) =>
+{
+    var removed = await repo.DeleteAsync(id, ct);
+    if (!removed) return Results.NotFound();
+    await repo.SaveChangesAsync(ct);
+    return Results.NoContent();
+});
+
+// ----- Share links (#80) ----------------------------------------------------
 
 app.MapPost("/plans/{id:guid}/share", async (
     Guid id,
@@ -442,9 +467,6 @@ app.MapPost("/plans/{id:guid}/share", async (
     await shares.AddAsync(entity, ct);
     await shares.SaveChangesAsync(ct);
 
-    // Build an absolute URL so the planner UI can present a one-click copy.
-    // Trusts the incoming Host/Scheme — fine for an OSS local-first app, and
-    // any hosted deployment terminates TLS in front of this layer anyway.
     var baseUrl = $"{http.Scheme}://{http.Host}";
     return Results.Ok(new ShareTokenView(token, $"{baseUrl}/plans/shared/{token}", entity.CreatedUtc, entity.ExpiresUtc));
 });
@@ -476,20 +498,13 @@ app.MapGet("/plans/shared/{token}", async (
         return Results.NotFound();
 
     var plan = await plans.GetAsync(entity.PlanId, ct);
-    return plan is null
-        ? Results.NotFound()
-        : Results.Ok(SavedPlanView.From(plan));
+    return plan is null ? Results.NotFound() : Results.Ok(SavedPlanDto.From(plan));
 });
 
 app.MapDefaultEndpoints();
 
 app.Run();
 
-/// <summary>
-/// 16-char URL-safe token. Base64-url over 12 random bytes gives 16
-/// alphanumeric (+ '-' / '_') chars and ~96 bits of entropy — far more than
-/// enough for an unguessable share link without bloating the URL.
-/// </summary>
 internal static class ShareTokenGenerator
 {
     public static string NewToken()
@@ -502,6 +517,10 @@ internal static class ShareTokenGenerator
             .TrimEnd('=');
     }
 }
+
+public sealed record ShareTokenView(string Token, string Url, DateTime CreatedUtc, DateTime? ExpiresUtc);
+
+public partial class Program { }
 
 public sealed record ItemDto(string Id, string Name);
 
@@ -756,39 +775,6 @@ public sealed record TargetDto(string ItemId, decimal ItemsPerMinute);
 public sealed record AvailabilityDto(string ItemId, decimal ItemsPerMinute);
 public sealed record PlanRequest(IReadOnlyList<TargetDto> Targets, IReadOnlyList<AvailabilityDto> Available);
 
-/// <summary>Body for POST /plans (saves the current planner inputs under a name).</summary>
-public sealed record SavePlanRequest(
-    string Name,
-    IReadOnlyList<TargetDto> Targets,
-    IReadOnlyList<AvailabilityDto> Available);
-
-public sealed record SavedPlanView(
-    Guid Id,
-    string Name,
-    IReadOnlyList<TargetDto> Targets,
-    IReadOnlyList<AvailabilityDto> Available,
-    DateTime CreatedUtc,
-    DateTime UpdatedUtc)
-{
-    public static SavedPlanView From(SavedPlan plan) => new(
-        plan.Id,
-        plan.Name,
-        plan.Targets.Select(t => new TargetDto(t.Item.Value, t.ItemsPerMinute)).ToList(),
-        plan.Available.Select(a => new AvailabilityDto(a.Item.Value, a.ItemsPerMinute)).ToList(),
-        plan.CreatedUtc,
-        plan.UpdatedUtc);
-}
-
-public sealed record ShareTokenView(string Token, string Url, DateTime CreatedUtc, DateTime? ExpiresUtc);
-
-/// <summary>
-/// Public Program shim so <c>WebApplicationFactory&lt;Program&gt;</c> in the
-/// integration-test project can target this entry point — without it the
-/// implicit <c>Program</c> class generated from top-level statements is
-/// internal and the factory can't see it.
-/// </summary>
-public partial class Program { }
-
 public sealed record AmountDto(string ItemId, string ItemName, decimal ItemsPerMinute);
 public sealed record StepDto(
     string RecipeId,
@@ -799,6 +785,41 @@ public sealed record StepDto(
     decimal PowerMw,
     IReadOnlyList<AmountDto> Inputs,
     IReadOnlyList<AmountDto> Outputs);
+
+// ---- Saved plan DTOs (issue #77) -------------------------------------------
+// Wire shapes for /plans endpoints. Kept thin and string-typed so the Web
+// client doesn't take a reference on the ERP.Domain assembly.
+
+public sealed record SavePlanRequest(
+    string Name,
+    IReadOnlyList<TargetDto>? Targets,
+    IReadOnlyList<AvailabilityDto>? Available);
+
+public sealed record SavedPlanSummaryDto(
+    Guid Id,
+    string Name,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc,
+    int TargetCount,
+    int AvailableCount)
+{
+    public static SavedPlanSummaryDto From(SavedPlan p) =>
+        new(p.Id, p.Name, p.CreatedUtc, p.UpdatedUtc, p.Targets.Count, p.Available.Count);
+}
+
+public sealed record SavedPlanDto(
+    Guid Id,
+    string Name,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc,
+    IReadOnlyList<TargetDto> Targets,
+    IReadOnlyList<AvailabilityDto> Available)
+{
+    public static SavedPlanDto From(SavedPlan p) =>
+        new(p.Id, p.Name, p.CreatedUtc, p.UpdatedUtc,
+            p.Targets.Select(t => new TargetDto(t.Item.Value, t.ItemsPerMinute)).ToList(),
+            p.Available.Select(a => new AvailabilityDto(a.Item.Value, a.ItemsPerMinute)).ToList());
+}
 
 public sealed record PlanDto(
     bool IsFeasible,

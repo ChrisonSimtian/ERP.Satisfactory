@@ -9,11 +9,16 @@ namespace ERP.Infrastructure.Persistence.Configurations;
 ///
 /// <para>
 /// The two collections (<see cref="SavedPlan.Targets"/>, <see cref="SavedPlan.Available"/>)
-/// are persisted as owned collections in their own tables. This keeps the model
-/// relational (queryable, indexable) without forcing JSON column support, which
-/// not every candidate provider offers equally (SQLite needs 3.39+, SQL Server
-/// has its own variant). When a provider is picked, switch to <c>ToJson()</c>
-/// instead if simpler — both shapes work, and the aggregate boundary is the same.
+/// are persisted as JSON columns on the <c>Plans</c> row via <c>ToJson()</c>.
+/// SQLite 3.39+ and PostgreSQL both support EF Core's JSON column mapping; this
+/// keeps the schema simple (one table, no ordinal shadow keys) and avoids the
+/// EF tracking pitfalls of owned record-typed dependents with composite keys.
+/// </para>
+///
+/// <para>
+/// The aggregate boundary is unchanged — the planner UI still sees an ordered
+/// list of targets and an ordered list of available resources; persistence
+/// just round-trips them as embedded JSON arrays rather than two side tables.
 /// </para>
 /// </summary>
 internal sealed class SavedPlanConfiguration : IEntityTypeConfiguration<SavedPlan>
@@ -36,21 +41,11 @@ internal sealed class SavedPlanConfiguration : IEntityTypeConfiguration<SavedPla
             nameof(SavedPlan.Targets),
             targets =>
             {
-                targets.ToTable("PlanTargets");
-                targets.WithOwner().HasForeignKey("PlanId");
-                // ValueGeneratedNever: the ordinal is assigned by the
-                // PlanDbContext.SaveChanges override based on list position —
-                // owned collections under EF Core 10 default this property to
-                // store-generated, which works on Postgres (identity) but not
-                // SQLite (no auto-increment for composite-key columns).
-                targets.Property<int>("Ordinal").ValueGeneratedNever();
-                targets.HasKey("PlanId", "Ordinal");
+                targets.ToJson();
 
                 targets.Property(t => t.Item)
                     .HasConversion(id => id.Value, value => new ItemId(value))
-                    .HasColumnName("ItemId")
-                    .IsRequired()
-                    .HasMaxLength(200);
+                    .IsRequired();
 
                 targets.Property(t => t.ItemsPerMinute)
                     .HasColumnType("decimal(18,4)");
@@ -60,33 +55,25 @@ internal sealed class SavedPlanConfiguration : IEntityTypeConfiguration<SavedPla
             nameof(SavedPlan.Available),
             avail =>
             {
-                avail.ToTable("PlanAvailability");
-                avail.WithOwner().HasForeignKey("PlanId");
-                // See note on Targets — explicit ordinal assignment in the
-                // SaveChanges override, so disable EF's store-generated default.
-                avail.Property<int>("Ordinal").ValueGeneratedNever();
-                avail.HasKey("PlanId", "Ordinal");
+                avail.ToJson();
 
                 avail.Property(a => a.Item)
                     .HasConversion(id => id.Value, value => new ItemId(value))
-                    .HasColumnName("ItemId")
-                    .IsRequired()
-                    .HasMaxLength(200);
+                    .IsRequired();
 
                 avail.Property(a => a.ItemsPerMinute)
                     .HasColumnType("decimal(18,4)");
             });
 
-        // SavedPlan exposes its child lists as read-only views over private
-        // List<T> backing fields (_targets, _available). Field-mode lets EF
-        // hydrate those mutable backings during materialisation; using the
-        // public IReadOnlyList property would route through SZArrayHelper.Add
-        // for the parameterless-ctor case and fail with a fixed-size error.
+        // The aggregate exposes its child lists as IReadOnlyList<T> over private
+        // `List<T>` backing fields. Point EF at the fields directly so it can
+        // hydrate them on materialisation without going through the read-only
+        // facade (which doesn't expose Add).
         builder.Navigation(nameof(SavedPlan.Targets))
-            .UsePropertyAccessMode(PropertyAccessMode.Field)
-            .HasField("_targets");
+            .HasField("_targets")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(nameof(SavedPlan.Available))
-            .UsePropertyAccessMode(PropertyAccessMode.Field)
-            .HasField("_available");
+            .HasField("_available")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

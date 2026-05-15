@@ -19,18 +19,25 @@ namespace ERP.Domain;
 /// </summary>
 public sealed class SavedPlan
 {
-    // Backing fields are concrete List<T> rather than IReadOnlyList<T> so EF
-    // Core's collection accessor can mutate them when materialising owned
-    // collections. A bare `= []` default produces a fixed-size array, which
-    // EF picks up via the property and then fails on .Add() during hydration
-    // (NotSupportedException: Collection was of a fixed size).
-    private List<ProductionTarget> _targets = new();
-    private List<ResourceAvailability> _available = new();
+    // Backing lists are concrete `List<T>` so EF Core (with PropertyAccessMode.Property)
+    // can hydrate them on materialisation by Adding into the collection in place.
+    // The public API still exposes `IReadOnlyList<T>` to keep callers honest about
+    // not mutating the aggregate's children outside its methods.
+    private List<ProductionTarget> _targets = [];
+    private List<ResourceAvailability> _available = [];
 
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
-    public IReadOnlyList<ProductionTarget> Targets => _targets;
-    public IReadOnlyList<ResourceAvailability> Available => _available;
+    public IReadOnlyList<ProductionTarget> Targets
+    {
+        get => _targets;
+        private set => _targets = value is List<ProductionTarget> list ? list : [.. value];
+    }
+    public IReadOnlyList<ResourceAvailability> Available
+    {
+        get => _available;
+        private set => _available = value is List<ResourceAvailability> list ? list : [.. value];
+    }
     public DateTime CreatedUtc { get; private set; }
     public DateTime UpdatedUtc { get; private set; }
 
@@ -50,8 +57,8 @@ public sealed class SavedPlan
 
         Id = id;
         Name = name;
-        _targets = targets.ToList();
-        _available = available.ToList();
+        Targets = targets;
+        Available = available;
         CreatedUtc = createdUtc;
         UpdatedUtc = updatedUtc;
     }
@@ -68,8 +75,8 @@ public sealed class SavedPlan
         IReadOnlyList<ResourceAvailability> available,
         DateTime nowUtc)
     {
-        _targets = targets.ToList();
-        _available = available.ToList();
+        Targets = targets;
+        Available = available;
         UpdatedUtc = nowUtc;
     }
 }

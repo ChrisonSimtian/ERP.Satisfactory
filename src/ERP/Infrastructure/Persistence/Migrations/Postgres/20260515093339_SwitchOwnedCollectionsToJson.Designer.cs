@@ -3,6 +3,7 @@ using System;
 using ERP.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ERP.Infrastructure.Persistence.Migrations.Postgres
 {
     [DbContext(typeof(PostgresPlanDbContext))]
-    partial class PostgresPlanDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260515093339_SwitchOwnedCollectionsToJson")]
+    partial class SwitchOwnedCollectionsToJson
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,31 +24,6 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("ERP.Domain.PlanShareToken", b =>
-                {
-                    b.Property<string>("Token")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ExpiresUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("PlanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("RevokedUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Token");
-
-                    b.HasIndex("PlanId");
-
-                    b.ToTable("PlanShareTokens", (string)null);
-                });
 
             modelBuilder.Entity("ERP.Domain.SavedPlan", b =>
                 {
@@ -66,15 +44,6 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("Plans", (string)null);
-                });
-
-            modelBuilder.Entity("ERP.Domain.PlanShareToken", b =>
-                {
-                    b.HasOne("ERP.Domain.SavedPlan", null)
-                        .WithMany()
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Domain.SavedPlan", b =>
