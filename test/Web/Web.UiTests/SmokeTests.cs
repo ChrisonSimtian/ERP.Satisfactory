@@ -57,7 +57,7 @@ public class SmokeTests(AspireAppFixture fixture) : IClassFixture<AspireAppFixtu
         var draftJson = JsonSerializer.Serialize(new
         {
             sources = new[] { new { itemId = "Desc_OreIron_C", itemsPerMinute = 120m } },
-            sinks   = new[] { new { itemId = "Desc_IronPlate_C", itemsPerMinute = 30m } },
+            sinks = new[] { new { itemId = "Desc_IronPlate_C", itemsPerMinute = 30m } },
         });
         await context.AddInitScriptAsync(
             $"window.localStorage.setItem('erp-draft:planner', {JsonSerializer.Serialize(draftJson)});");
