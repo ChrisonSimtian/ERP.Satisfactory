@@ -17,6 +17,10 @@ permissions:
 # placeholder resolves to the workflow's installation token. GitHub Packages
 # NuGet always requires auth — even for public packages — so this is needed
 # by every job that runs `dotnet restore` / `dotnet build`.
+#
+# DOTNET_INSTALL_DIR is set per-job (where runner.* context is available)
+# to redirect `setup-dotnet@v4` away from `/usr/share/dotnet` which isn't
+# writable on self-hosted runners.
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -34,6 +38,9 @@ jobs:
     # our own runner. `setup-dotnet@v4` provides .NET on demand so no
     # additional host setup is needed beyond the runner agent itself.
     runs-on: self-hosted
+    env:
+      # Redirect dotnet install to a user-writable path on self-hosted.
+      DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -72,6 +79,8 @@ jobs:
     # extra host packages are needed.
     runs-on: self-hosted
     timeout-minutes: 30
+    env:
+      DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
 
     steps:
       - name: Checkout
@@ -123,6 +132,8 @@ jobs:
     # providers both ship in the SDK packages, nothing else to install.
     runs-on: self-hosted
     timeout-minutes: 15
+    env:
+      DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
 
     steps:
       - name: Checkout
@@ -218,9 +229,10 @@ jobs:
   publish-test-results:
     name: Publish test results
     needs: build-and-test
-    # Self-hosted — the action is a Node 20+ runner-side step; nothing on
-    # the host beyond Node which the agent already provides.
-    runs-on: self-hosted
+    # Stays on `ubuntu-latest` — the EnricoMi action shells out to a
+    # Python venv at runtime and the self-hosted host doesn't have
+    # python3 + venv provisioned. Move once those land on the host.
+    runs-on: ubuntu-latest
     if: always()
     permissions:
       contents: read
