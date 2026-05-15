@@ -49,7 +49,7 @@ else
 <div class="mt-4">
     <MudTextField @bind-Value="pathInput"
                   Label="Path to the Satisfactory Docs directory or a specific locale file"
-                  Placeholder="C:\Program Files (x86)\Steam\steamapps\common\Satisfactory\CommunityResources\Docs"
+                  Placeholder="@DocsPathPlaceholder"
                   Variant="Variant.Outlined"
                   Margin="Margin.Dense"
                   HelperTextOnFocus="false"
@@ -105,6 +105,13 @@ else
     private bool isApplying;
     private string mapBackdrop = "terrain";
     private string? mapMessage;
+
+    // Resolved server-side, so the hint reflects the OS hosting the app — which is
+    // the same machine the user is browsing from when they run it locally.
+    private static string DocsPathPlaceholder =>
+        OperatingSystem.IsMacOS()
+            ? "~/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Satisfactory/CommunityResources/Docs"
+            : @"C:\Program Files (x86)\Steam\steamapps\common\Satisfactory\CommunityResources\Docs";
 
     private Severity StatusSeverity => status is null
         ? Severity.Info
