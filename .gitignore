@@ -8,6 +8,9 @@ artifacts/
 *.user
 *.suo
 
+# Claude Code agent worktrees (transient, never commit)
+.claude/worktrees/
+
 # Rider / VS / VS Code
 .idea/
 .vs/

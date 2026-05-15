@@ -3,42 +3,40 @@ using System;
 using ERP.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace ERP.Infrastructure.Persistence.Migrations.Postgres
+namespace ERP.Infrastructure.Persistence.Migrations.Sqlite
 {
-    [DbContext(typeof(PostgresPlanDbContext))]
-    partial class PostgresPlanDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(SqlitePlanDbContext))]
+    [Migration("20260515130945_AddPlanShareTokens")]
+    partial class AddPlanShareTokens
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
-
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
 
             modelBuilder.Entity("ERP.Domain.PlanShareToken", b =>
                 {
                     b.Property<string>("Token")
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ExpiresUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("PlanId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("RevokedUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Token");
 
@@ -50,18 +48,18 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
             modelBuilder.Entity("ERP.Domain.SavedPlan", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -84,7 +82,7 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
                             b1.Property<Guid>("SavedPlanId");
 
                             b1.Property<int>("__synthesizedOrdinal")
-                                .ValueGeneratedOnAdd();
+                                .ValueGeneratedOnAddOrUpdate();
 
                             b1.Property<string>("Item")
                                 .IsRequired();
@@ -107,7 +105,7 @@ namespace ERP.Infrastructure.Persistence.Migrations.Postgres
                             b1.Property<Guid>("SavedPlanId");
 
                             b1.Property<int>("__synthesizedOrdinal")
-                                .ValueGeneratedOnAdd();
+                                .ValueGeneratedOnAddOrUpdate();
 
                             b1.Property<string>("Item")
                                 .IsRequired();

@@ -1,0 +1,98 @@
+@page "/plans/shared/{Token}"
+@rendermode InteractiveServer
+@inject PlannerApiClient Api
+
+<PageTitle>Shared plan</PageTitle>
+
+<h1>Shared Plan</h1>
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3" Icon="@Icons.Material.Filled.Lock"
+          data-testid="shared-readonly-banner">
+    Read-only view shared via link. Edits are disabled.
+</MudAlert>
+
+@if (loading)
+{
+    <MudText><em>Loading shared plan...</em></MudText>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" data-testid="shared-not-found">
+        This share link is invalid, expired, or has been revoked.
+    </MudAlert>
+}
+else if (plan is not null)
+{
+    <MudText Typo="Typo.h4" Class="mb-1" data-testid="shared-plan-name">@plan.Name</MudText>
+    <MudText Typo="Typo.caption" Color="Color.Default" Class="d-block mb-4">
+        Created @plan.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+        @if (plan.UpdatedUtc != plan.CreatedUtc)
+        {
+            <span>· updated @plan.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+        }
+    </MudText>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h5" Class="mb-2">Sources <MudText HtmlTag="span" Typo="Typo.caption" Color="Color.Default">(items/min available)</MudText></MudText>
+            @if (plan.Available.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Default"><em>None.</em></MudText>
+            }
+            else
+            {
+                <MudList T="string" Dense="true" data-testid="shared-sources">
+                    @foreach (var a in plan.Available)
+                    {
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.Input">
+                            <span><strong>@FormatRate(a.ItemsPerMinute)</strong> / min · @a.ItemId</span>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h5" Class="mb-2">Sinks <MudText HtmlTag="span" Typo="Typo.caption" Color="Color.Default">(items/min wanted)</MudText></MudText>
+            @if (plan.Targets.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Default"><em>None.</em></MudText>
+            }
+            else
+            {
+                <MudList T="string" Dense="true" data-testid="shared-sinks">
+                    @foreach (var t in plan.Targets)
+                    {
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.Output">
+                            <span><strong>@FormatRate(t.ItemsPerMinute)</strong> / min · @t.ItemId</span>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private SavedPlanResponse? plan;
+    private bool loading = true;
+    private bool notFound;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            plan = await Api.GetSharedPlanAsync(Token);
+            notFound = plan is null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static string FormatRate(decimal rate) =>
+        rate == Math.Floor(rate) ? rate.ToString("0") : rate.ToString("0.##");
+}

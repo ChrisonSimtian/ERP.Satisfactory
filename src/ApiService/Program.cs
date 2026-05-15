@@ -449,9 +449,78 @@ app.MapDelete("/plans/{id:guid}", async (Guid id, IPlanRepository repo, Cancella
     return Results.NoContent();
 });
 
+// ----- Share links (#80) ----------------------------------------------------
+
+app.MapPost("/plans/{id:guid}/share", async (
+    Guid id,
+    IPlanRepository plans,
+    IPlanShareRepository shares,
+    TimeProvider clock,
+    HttpRequest http,
+    CancellationToken ct) =>
+{
+    var plan = await plans.GetAsync(id, ct);
+    if (plan is null) return Results.NotFound();
+
+    var token = ShareTokenGenerator.NewToken();
+    var entity = new PlanShareToken(token, plan.Id, clock.GetUtcNow().UtcDateTime);
+    await shares.AddAsync(entity, ct);
+    await shares.SaveChangesAsync(ct);
+
+    var baseUrl = $"{http.Scheme}://{http.Host}";
+    return Results.Ok(new ShareTokenView(token, $"{baseUrl}/plans/shared/{token}", entity.CreatedUtc, entity.ExpiresUtc));
+});
+
+app.MapDelete("/plans/{id:guid}/share/{token}", async (
+    Guid id,
+    string token,
+    IPlanShareRepository shares,
+    TimeProvider clock,
+    CancellationToken ct) =>
+{
+    var entity = await shares.GetAsync(token, ct);
+    if (entity is null || entity.PlanId != id) return Results.NotFound();
+
+    entity.Revoke(clock.GetUtcNow().UtcDateTime);
+    await shares.SaveChangesAsync(ct);
+    return Results.NoContent();
+});
+
+app.MapGet("/plans/shared/{token}", async (
+    string token,
+    IPlanRepository plans,
+    IPlanShareRepository shares,
+    TimeProvider clock,
+    CancellationToken ct) =>
+{
+    var entity = await shares.GetAsync(token, ct);
+    if (entity is null || !entity.IsActive(clock.GetUtcNow().UtcDateTime))
+        return Results.NotFound();
+
+    var plan = await plans.GetAsync(entity.PlanId, ct);
+    return plan is null ? Results.NotFound() : Results.Ok(SavedPlanDto.From(plan));
+});
+
 app.MapDefaultEndpoints();
 
 app.Run();
+
+internal static class ShareTokenGenerator
+{
+    public static string NewToken()
+    {
+        Span<byte> bytes = stackalloc byte[12];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+    }
+}
+
+public sealed record ShareTokenView(string Token, string Url, DateTime CreatedUtc, DateTime? ExpiresUtc);
+
+public partial class Program { }
 
 public sealed record ItemDto(string Id, string Name);
 

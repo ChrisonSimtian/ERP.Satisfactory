@@ -173,6 +173,12 @@ else
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Compute" Disabled="@isComputing">
             @(isComputing ? "Computing..." : "Compute plan")
         </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Share"
+                   OnClick="ShareAsync"
+                   Disabled="@(isSharing || isComputing)">
+            @(isSharing ? "Sharing..." : "Share")
+        </MudButton>
 
         <MudTextField @bind-Value="planName"
                       Placeholder="Plan name"
@@ -213,9 +219,24 @@ else
         }
         @if (!string.IsNullOrEmpty(error))
         {
-            <MudText HtmlTag="span" Color="Color.Error" Class="ms-3">@error</MudText>
+            <MudText HtmlTag="span" Color="Color.Error">@error</MudText>
         }
     </div>
+
+    @if (!string.IsNullOrEmpty(shareUrl))
+    {
+        <MudPaper Elevation="1" Class="mt-3 pa-3 d-flex align-items-center gap-2 flex-wrap" data-share-link="true">
+            <MudIcon Icon="@Icons.Material.Filled.Link" />
+            <MudText Typo="Typo.body2" Class="flex-grow-1" Style="word-break: break-all;">
+                <code>@shareUrl</code>
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.ContentCopy"
+                       OnClick="CopyShareUrlAsync">
+                Copy
+            </MudButton>
+        </MudPaper>
+    }
 }
 
 @if (plan is not null)
@@ -334,6 +355,8 @@ else
     private PlanResponse? plan;
     private string? error;
     private bool isComputing;
+    private bool isSharing;
+    private string? shareUrl;
     private string planName = string.Empty;
     private Guid planId = Guid.NewGuid();
     private DateTime planCreatedUtc = DateTime.UtcNow;
@@ -584,6 +607,70 @@ else
         finally
         {
             isComputing = false;
+        }
+    }
+
+    private async Task ShareAsync()
+    {
+        error = null;
+        shareUrl = null;
+        isSharing = true;
+        try
+        {
+            var targets = sinks.Where(r => r.Item is not null)
+                .Select(r => new TargetInput(r.Item!.Id, r.ItemsPerMinute)).ToList();
+            var available = sources.Where(r => r.Item is not null)
+                .Select(r => new AvailabilityInput(r.Item!.Id, r.ItemsPerMinute)).ToList();
+
+            if (targets.Count == 0)
+            {
+                error = "Add at least one sink before sharing.";
+                return;
+            }
+
+            // Name the saved plan after its first sink for now — the planner
+            // doesn't surface a name field, and #80 is about sharing not
+            // CRUD-ing plans. A later issue can layer "Save as..." semantics.
+            var firstSink = targets[0];
+            var saved = await Api.SavePlanAsync(new SavePlanInput($"Shared plan ({firstSink.ItemId})", targets, available));
+            if (saved is null)
+            {
+                error = "Could not save plan.";
+                return;
+            }
+
+            var share = await Api.CreateShareTokenAsync(saved.Id);
+            if (share is null)
+            {
+                error = "Could not create share link.";
+                return;
+            }
+
+            shareUrl = share.Url;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isSharing = false;
+        }
+    }
+
+    private async Task CopyShareUrlAsync()
+    {
+        if (string.IsNullOrEmpty(shareUrl)) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+            Snackbar.Add("Share link copied", Severity.Success);
+        }
+        catch
+        {
+            // Clipboard API can fail in non-secure contexts or older browsers —
+            // surface the URL so the user can still copy it manually.
+            Snackbar.Add("Could not copy — select the link manually.", Severity.Warning);
         }
     }
 
