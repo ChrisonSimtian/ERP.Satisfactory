@@ -133,7 +133,7 @@ public class PlanRepositoryTests : IDisposable
             Assert.Equal("v2", reloaded!.Name);
             Assert.Equal(2, reloaded.Targets.Count);
             Assert.Contains(reloaded.Targets, t => t.Item.Value == "Desc_IronPlate_C" && t.ItemsPerMinute == 20m);
-            Assert.Contains(reloaded.Targets, t => t.Item.Value == "Desc_IronRod_C"   && t.ItemsPerMinute == 15m);
+            Assert.Contains(reloaded.Targets, t => t.Item.Value == "Desc_IronRod_C" && t.ItemsPerMinute == 15m);
             Assert.Single(reloaded.Available);
             Assert.Equal(999m, reloaded.Available[0].ItemsPerMinute);
         }
