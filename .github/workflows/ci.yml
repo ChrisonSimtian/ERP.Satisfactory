@@ -53,6 +53,11 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
+        env:
+          # Pin install location to the runner user's home so setup-dotnet
+          # finds the pre-installed SDKs at /home/runner/.dotnet (skip),
+          # or installs there cleanly (writable) if a fresh runner.
+          DOTNET_INSTALL_DIR: /home/runner/.dotnet
         with:
           dotnet-version: 8.0.x
           global-json-file: global.json
@@ -91,6 +96,8 @@ jobs:
 
       - name: Setup .NET (10 from global.json + 8 for vendor submodule)
         uses: actions/setup-dotnet@v4
+        env:
+          DOTNET_INSTALL_DIR: /home/runner/.dotnet
         with:
           dotnet-version: 8.0.x
           global-json-file: global.json
@@ -142,6 +149,8 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
+        env:
+          DOTNET_INSTALL_DIR: /home/runner/.dotnet
         with:
           dotnet-version: 8.0.x
           global-json-file: global.json
