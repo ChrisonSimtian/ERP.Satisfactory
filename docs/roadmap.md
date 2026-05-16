@@ -44,9 +44,10 @@ Given a server-side saved plan and a live save file (M12 already ingests these),
 show *"target: 60 Modular Frames/min — observed: 42/min — bottleneck: iron
 plate undersupply"*. Closes the loop between planning and running.
 
-This is partly the territory #30 was scoped to ("Drift detection between
-stocktake.md and parsed save"), now blocked. May resurrect once a richer plan
-model exists in EF.
+A first pass at this was tracked in #30 (drift between hand-curated
+stocktake and parsed save) — closed in favour of letting the parsed save
+be the sole source of truth. Worth revisiting once a richer plan model
+exists in EF.
 
 ### Plan-on-map overlay
 Pin recipe groups to map coordinates. Draw a rough factory layout sketch on

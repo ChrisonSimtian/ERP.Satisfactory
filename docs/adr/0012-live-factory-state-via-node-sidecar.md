@@ -86,3 +86,9 @@ current save versions.
 - Multi-game capability is preserved: the port lives in the Application layer
   and a different game's adapter (whether Node, C#, or otherwise) just
   implements the same contract.
+
+## 2026-05-16 follow-up — stocktake files removed
+
+The retirement noted in Consequences is now complete: `.satisfactory/stocktake.md`
+and `.satisfactory/todo.md` were deleted in #112. The decision text above is
+preserved unchanged for historical context.

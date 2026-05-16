@@ -91,3 +91,9 @@ auto-detect under `%LocalAppData%\FactoryGame\Saved\SaveGames\<steamId>\`.
 - The `tools/etothepii-test/` directory and any remaining TypeScript scaffolding
   becomes reference material for the upstream PR diff and can be retired once
   that PR lands.
+
+## 2026-05-16 follow-up — stocktake files removed
+
+The retirement noted in Consequences is now complete: `.satisfactory/stocktake.md`
+and `.satisfactory/todo.md` were deleted in #112. The decision text above is
+preserved unchanged for historical context.
