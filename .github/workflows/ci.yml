@@ -26,29 +26,87 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Detect change scope (#102). Emits `code=true` when any build/test/CI input
+  # changed, `code=false` for doc-only changes. Downstream jobs gate on it.
+  #
+  # Required checks (Lint, Build & Test) still RUN — they short-circuit each
+  # step so branch protection's required-status gate is satisfied on doc-only
+  # PRs. Non-required jobs use a job-level `if` and skip cleanly. workflow_dispatch
+  # always runs the full lane.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      code: ${{ steps.gate.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect code paths
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'test/**'
+              - 'vendor/**'
+              - '.github/workflows/**'
+              - 'build/**'
+              - '*.props'
+              - '*.sln'
+              - '*.slnx'
+              - 'global.json'
+              - 'version.json'
+              - 'Directory.Build.props'
+              - 'nuget.config'
+              - 'build.sh'
+              - 'build.cmd'
+              - 'build.ps1'
+
+      - name: Compute gate
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=${{ steps.filter.outputs.code }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---------------------------------------------------------------------------
   # Lint — runs alongside Build & Test for parallel feedback.
   # ---------------------------------------------------------------------------
   lint:
     name: Lint (dotnet format)
+    needs: changes
     # `self-hosted` rather than `ubuntu-latest` so the lint-pool comes off
     # our own runner. `setup-dotnet@v4` provides .NET on demand so no
     # additional host setup is needed beyond the runner agent itself.
     runs-on: self-hosted
     timeout-minutes: 10
     steps:
+      - name: Skip (doc-only change)
+        if: needs.changes.outputs.code != 'true'
+        run: echo "Doc-only change — required check satisfied without running lint."
+
       - name: Checkout
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0   # NB.GV needs full history for version-height calc
 
       - name: Initialize vendored SatisfactorySaveNet submodule
+        if: needs.changes.outputs.code == 'true'
         run: git -c submodule.vendor/SatisfactorySaveNet.update=checkout submodule update --init --recursive
 
       - name: Cache NuGet packages
         # GH-hosted only — persistent self-hosted runners keep
         # ~/.nuget/packages warm between runs, so the remote cache
         # store roundtrip is pure overhead there.
-        if: runner.environment != 'self-hosted'
+        if: needs.changes.outputs.code == 'true' && runner.environment != 'self-hosted'
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -56,6 +114,7 @@ jobs:
           restore-keys: ubuntu-latest-nuget-
 
       - name: Setup .NET
+        if: needs.changes.outputs.code == 'true'
         uses: actions/setup-dotnet@v4
         env:
           # Pin install location to the runner user's home so setup-dotnet
@@ -67,6 +126,7 @@ jobs:
           global-json-file: global.json
 
       - name: Format check
+        if: needs.changes.outputs.code == 'true'
         run: ./build.sh Format
 
   # ---------------------------------------------------------------------------
@@ -76,6 +136,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-and-test:
     name: Build & Test
+    needs: changes
     # Self-hosted — `dotnet test` only needs the SDK that `setup-dotnet@v4`
     # installs. The CI test slice (`TestNoUi`) excludes Playwright so no
     # extra host packages are needed.
@@ -83,19 +144,25 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Skip (doc-only change)
+        if: needs.changes.outputs.code != 'true'
+        run: echo "Doc-only change — required check satisfied without running build + tests."
+
       - name: Checkout
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0   # NB.GV needs full history for version-height calc
 
       - name: Initialize vendored SatisfactorySaveNet submodule
+        if: needs.changes.outputs.code == 'true'
         run: git -c submodule.vendor/SatisfactorySaveNet.update=checkout submodule update --init --recursive
 
       - name: Cache NuGet packages
         # GH-hosted only — persistent self-hosted runners keep
         # ~/.nuget/packages warm between runs, so the remote cache
         # store roundtrip is pure overhead there.
-        if: runner.environment != 'self-hosted'
+        if: needs.changes.outputs.code == 'true' && runner.environment != 'self-hosted'
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -103,6 +170,7 @@ jobs:
           restore-keys: ubuntu-latest-nuget-
 
       - name: Setup .NET (10 from global.json + 8 for vendor submodule)
+        if: needs.changes.outputs.code == 'true'
         uses: actions/setup-dotnet@v4
         env:
           DOTNET_INSTALL_DIR: /home/runner/.dotnet
@@ -111,6 +179,7 @@ jobs:
           global-json-file: global.json
 
       - name: Build & Test (no UI)
+        if: needs.changes.outputs.code == 'true'
         # Web.UiTests is excluded in CI — Playwright's --with-deps chromium
         # install (sudo apt-get + ~150MB browser download) is too heavy for the
         # free GitHub Actions runner. Run `./build.sh Test` locally to include
@@ -118,7 +187,7 @@ jobs:
         run: ./build.sh TestNoUi
 
       - name: Upload TRX test results
-        if: always()
+        if: always() && needs.changes.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: test-results
@@ -133,6 +202,8 @@ jobs:
   # ---------------------------------------------------------------------------
   migration-drift:
     name: Migration drift (SQLite + Postgres)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     # Self-hosted — `dotnet ef migrations has-pending-model-changes` reads
     # the migrations snapshot offline, no live DB needed. SQLite + Postgres
     # providers both ship in the SDK packages, nothing else to install.
@@ -178,6 +249,8 @@ jobs:
   # ---------------------------------------------------------------------------
   postgres-smoke:
     name: Postgres migration smoke
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     # Stays on `ubuntu-latest` — the `services: postgres:16` block needs
     # Docker on the host and the GH-hosted runners already have it. Move
     # this to self-hosted only after Docker (and the `psql` CLI for the
@@ -242,12 +315,12 @@ jobs:
   # ---------------------------------------------------------------------------
   publish-test-results:
     name: Publish test results
-    needs: build-and-test
+    needs: [changes, build-and-test]
     # Stays on `ubuntu-latest` — the EnricoMi action shells out to a
     # Python venv at runtime and the self-hosted host doesn't have
     # python3 + venv provisioned. Move once those land on the host.
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && needs.changes.outputs.code == 'true'
     permissions:
       contents: read
       checks: write
@@ -275,12 +348,12 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Release
-    needs: [lint, build-and-test, migration-drift, postgres-smoke]
+    needs: [changes, lint, build-and-test, migration-drift, postgres-smoke]
     # Stays on `ubuntu-latest` — `./build.sh Release` shells out to the
     # `gh` CLI which the GH-hosted runners ship preinstalled. Move to
     # self-hosted once `gh` is provisioned on that host.
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.code == 'true'
     timeout-minutes: 15
     permissions:
       contents: write    # create tags + releases
