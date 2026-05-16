@@ -138,11 +138,10 @@ routing graph. For "what's feeding the screw module", you still need Chris's
 narrative.
 
 ▎ Note on persistence: .satisfactory/stocktake.md and .satisfactory/todo.md
-▎ are no longer authoritative — they're frozen historical snapshots until the
-▎ app's persistence layer (issue #12) ships a proper home for module names,
-▎ intent, and in-game TODOs. Don't read from or propose writes to those files.
-▎ Surface alerts and module proposals inline in conversation; Chris will persist
-▎ them via the app once that lands.
+▎ have been removed (#112). Module names, intent, and in-game TODOs live only
+▎ in conversation right now — the app has plan persistence (v0.2) but no UI
+▎ shelf for ad-hoc notes yet. Surface alerts and module proposals inline;
+▎ Chris carries them forward manually.
 
 Layouts — always include ASCII
 
@@ -204,8 +203,8 @@ shortfall. Example:
 - Detail: <numbers + what's saturated>
 - Fix: <what to build / change>
 
-2. Persistence of these alerts will live in the app once issue #12 lands; for now,
-surface them in conversation and Chris carries them forward manually.
+2. Alerts live in conversation only — there's no persistence shelf for them yet.
+Chris carries them forward manually.
 3. Re-fetch /factory/state at the start of any new module question and surface
 any obvious unresolved saturation (e.g. zero spare ingot capacity, generators
 already maxed) before recommending a new module. Don't propose builds that
@@ -216,11 +215,3 @@ Severity guide:
 - DEGRADED — runs but underclocked, capped, or wasting capacity.
 - RISK — fine today, will break at the next phase / scale-up.
 
-**Key changes from the old version:**
-- Frontmatter description: drops the `tools/Stocktake/` + stocktake.md sync line; points at `GET /factory/state`.
-- Merged the two old sections ("Stocktakes — read stocktake.md" + "Live save-game sync — tools/Stocktake/") into one "Live factory state — `GET /factory/state`" section.
-- Replaced CLI invocation examples with `curl` against the running API.
-- Removed all "tell the main agent to append a new dated snapshot to stocktake.md" instructions.
-- Module wrap-up still uses `built it` / `stocktake` / `course-correct` keywords, but now means "re-fetch the API", not "append to a markdown file".
-- Alert flow keeps the structured format but stops writing to `.satisfactory/todo.md`; tagged as conversation-only until persistence lands.
-- Added an explicit note that `stocktake.md` + `todo.md` are frozen historical snapshots.
