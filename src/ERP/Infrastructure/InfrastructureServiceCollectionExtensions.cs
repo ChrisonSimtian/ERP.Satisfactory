@@ -2,6 +2,8 @@ using ERP.Application;
 using ERP.Application.Queries.PlanProduction;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Satisfactory.Save;
 
 namespace ERP.Infrastructure;
@@ -12,6 +14,7 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.Configure<CatalogueOptions>(configuration.GetSection("Catalogue:Satisfactory"));
         services.Configure<FactoryStateOptions>(configuration.GetSection("FactoryState:Satisfactory"));
+        services.Configure<PlannerOptions>(configuration.GetSection("Planner"));
         services.AddSingleton<UserCatalogueConfig>();
         services.AddSingleton<ICatalogProvider, DocsCatalogProvider>();
         // Manual node overrides — user-local JSON loaded once at startup and
@@ -24,9 +27,22 @@ public static class InfrastructureServiceCollectionExtensions
         // world-fixed and we surface them straight from the bundled JSON.
         services.AddSingleton(_ => KnownFlora.LoadEmbedded());
         services.AddSingleton<IFactoryStateProvider, SatisfactorySaveNetFactoryStateProvider>();
-        // Recipe planner port (#88). Recursive impl today; LP-backed adapter
-        // will land alongside this one behind a `Planner:Engine` switch.
-        services.AddSingleton<IRecipePlanner, RecursiveRecipePlanner>();
+        // Recipe planner port (#88). Engine is selected by Planner:Engine
+        // config — defaults to Recursive. The LP engine uses OR-Tools GLOP
+        // (Google.OrTools native deps verified for macOS dev + self-hosted
+        // Linux CI). Both impls share the IRecipePlanner contract.
+        services.AddSingleton<IRecipePlanner>(sp =>
+        {
+            var engine = sp.GetRequiredService<IOptions<PlannerOptions>>().Value.Engine;
+            var catalog = sp.GetRequiredService<ICatalogProvider>();
+            return engine switch
+            {
+                PlannerEngine.Lp => new OrToolsRecipePlanner(
+                    catalog,
+                    sp.GetService<ILogger<OrToolsRecipePlanner>>()),
+                _ => new RecursiveRecipePlanner(catalog),
+            };
+        });
         return services;
     }
 }
