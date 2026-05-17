@@ -45,6 +45,20 @@ public sealed class OrToolsRecipePlanner : IRecipePlanner
     // coefficients (~10⁰–10²) so it doesn't influence recipe selection.
     private const double RawDrawTieBreaker = 1e-3;
 
+    // Miner extraction parameters (#92). Hardcoded for v1 — the catalog
+    // entries for Build_MinerMkN_C don't currently expose per-tier
+    // extraction rates, only base power. If we ever want to read them
+    // from Docs.json instead, the lookup goes here.
+    private const double MinerMk1RatePerMin = 60.0;
+    private const double MinerMk2RatePerMin = 120.0;
+    private const double MinerMk3RatePerMin = 240.0;
+    private const double MinerMk1PowerMw = 5.0;
+    private const double MinerMk2PowerMw = 12.0;
+    private const double MinerMk3PowerMw = 30.0;
+    private const double PurityImpure = 0.5;
+    private const double PurityNormal = 1.0;
+    private const double PurityPure = 2.0;
+
     private readonly ICatalogProvider _catalog;
     private readonly ILogger<OrToolsRecipePlanner>? _logger;
 
@@ -91,8 +105,41 @@ public sealed class OrToolsRecipePlanner : IRecipePlanner
             i => i,
             i => solver.MakeNumVar(0.0, double.PositiveInfinity, $"short_{i.Value}"));
 
+        // Node-aware extraction (#92). For each NodeAvailability the user
+        // provided, the LP picks which miner tier (out of AvailableTiers) to
+        // place on the node. One miner per node — enforced by the per-node
+        // sum-of-tier-fractions ≤ 1 constraint below.
+        var nodes = query.Nodes ?? Array.Empty<NodeAvailability>();
+        // Include node-supplied resources in the item universe so their
+        // supply constraints get built later in the foreach (var i in items).
+        foreach (var n in nodes) items.Add(n.Resource);
+
+        // nodeVars: keyed by (NodeReference, MinerTier). Each represents the
+        // activation fraction of that tier of miner on that node.
+        var nodeVars = new Dictionary<(string NodeRef, MinerTier Tier), Variable>();
+        foreach (var node in nodes)
+        {
+            var tiers = (node.AvailableTiers is { Count: > 0 } t) ? t : AllMinerTiers;
+            var fits = solver.MakeConstraint(0.0, 1.0, $"node_capacity_{node.NodeReference}");
+            foreach (var tier in tiers)
+            {
+                var v = solver.MakeNumVar(
+                    0.0, 1.0, $"n_{SanitiseRef(node.NodeReference)}_{tier}");
+                nodeVars[(node.NodeReference, tier)] = v;
+                fits.SetCoefficient(v, 1);
+            }
+        }
+
+        // Index nodes by Resource so the supply-constraint loop below can
+        // add the right node contributions without a second pass.
+        var nodesByResource = nodes
+            .GroupBy(n => n.Resource)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         // Supply ≥ Demand constraint per item:
-        //   raw_i + Σ_r x_r·(out_rate(r,i) − in_rate(r,i)) + short_i ≥ target_i
+        //   raw_i + Σ_r x_r·(out_rate(r,i) − in_rate(r,i))
+        //         + Σ_(node, tier) n_(node,tier)·extractionRate(tier, node.Purity)
+        //         + short_i ≥ target_i
         foreach (var i in items)
         {
             var targetI = targets.TryGetValue(i, out var t) ? t : 0.0;
@@ -104,6 +151,20 @@ public sealed class OrToolsRecipePlanner : IRecipePlanner
                 var coeff = NetRatePerMinute(r, i);
                 if (Math.Abs(coeff) > Epsilon)
                     c.SetCoefficient(xVars[r.Id], coeff);
+            }
+            // Node contributions (#92) — only fire on resources with bound nodes.
+            if (nodesByResource.TryGetValue(i, out var nodesForItem))
+            {
+                foreach (var node in nodesForItem)
+                {
+                    var purityMult = PurityMultiplier(node.Purity);
+                    var tiers = (node.AvailableTiers is { Count: > 0 } at) ? at : AllMinerTiers;
+                    foreach (var tier in tiers)
+                    {
+                        var rate = MinerBaseRate(tier) * purityMult;
+                        c.SetCoefficient(nodeVars[(node.NodeReference, tier)], rate);
+                    }
+                }
             }
         }
 
@@ -130,6 +191,17 @@ public sealed class OrToolsRecipePlanner : IRecipePlanner
                 : ShortfallPenaltyForRaw;
             obj.SetCoefficient(shortVars[i], penalty);
             obj.SetCoefficient(rawVars[i], RawDrawTieBreaker);
+        }
+        // Miner power — gives the LP a reason to PREFER higher-throughput
+        // tiers (which use less miner-power-per-output-unit on the same node
+        // purity: Mk3 = 30 MW / 240 = 0.125 MW per ore/min; Mk1 = 5 / 60 ≈
+        // 0.083 MW per ore/min on Normal). The trade-off flips on Impure
+        // (Mk1 = 5/30 ≈ 0.166; Mk3 = 30/120 = 0.25), so the LP genuinely
+        // picks the right answer for each (tier × purity) pair instead of
+        // always defaulting to one extreme.
+        foreach (var ((_, tier), v) in nodeVars)
+        {
+            obj.SetCoefficient(v, MinerPower(tier));
         }
         obj.SetMinimization();
 
@@ -166,13 +238,69 @@ public sealed class OrToolsRecipePlanner : IRecipePlanner
                 missingByItem[i] = (decimal)amount;
         }
 
+        // Extract allocations (#92): which tier got placed on each provided
+        // node, plus the resulting per-minute output. Skips fractions below
+        // Epsilon so vanishingly-small LP noise doesn't surface as a 0.001-
+        // miner row in the user's plan.
+        var allocations = new List<ExtractorAllocation>();
+        foreach (var node in nodes)
+        {
+            var tiers = (node.AvailableTiers is { Count: > 0 } at) ? at : AllMinerTiers;
+            foreach (var tier in tiers)
+            {
+                var frac = nodeVars[(node.NodeReference, tier)].SolutionValue();
+                if (frac <= Epsilon) continue;
+                var output = frac * MinerBaseRate(tier) * PurityMultiplier(node.Purity);
+                allocations.Add(new ExtractorAllocation(
+                    NodeReference: node.NodeReference,
+                    Resource: node.Resource,
+                    Purity: node.Purity,
+                    Tier: tier,
+                    MinerFraction: (decimal)frac,
+                    OutputPerMinute: (decimal)output));
+            }
+        }
+
         return new ProductionPlan(
             Targets: query.Targets,
             Available: query.Available,
             Steps: steps,
             RawInputsConsumed: rawConsumed,
-            MissingInputs: InfeasibilityDiagnostics.Build(missingByItem, _catalog, steps));
+            MissingInputs: InfeasibilityDiagnostics.Build(missingByItem, _catalog, steps),
+            ExtractorAllocations: allocations);
     }
+
+    private static readonly IReadOnlyList<MinerTier> AllMinerTiers =
+        new[] { MinerTier.Mk1, MinerTier.Mk2, MinerTier.Mk3 };
+
+    private static double MinerBaseRate(MinerTier tier) => tier switch
+    {
+        MinerTier.Mk1 => MinerMk1RatePerMin,
+        MinerTier.Mk2 => MinerMk2RatePerMin,
+        MinerTier.Mk3 => MinerMk3RatePerMin,
+        _ => 0,
+    };
+
+    private static double MinerPower(MinerTier tier) => tier switch
+    {
+        MinerTier.Mk1 => MinerMk1PowerMw,
+        MinerTier.Mk2 => MinerMk2PowerMw,
+        MinerTier.Mk3 => MinerMk3PowerMw,
+        _ => 0,
+    };
+
+    private static double PurityMultiplier(NodePurity purity) => purity switch
+    {
+        NodePurity.Impure => PurityImpure,
+        NodePurity.Pure => PurityPure,
+        _ => PurityNormal,
+    };
+
+    // Variable names in OR-Tools need to round-trip ASCII; node references
+    // often include slashes / dots / brackets. Cheap sanitisation keeps
+    // logs readable when GLOP prints variable names.
+    private static string SanitiseRef(string raw) =>
+        new(raw.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
 
     private static double NetRatePerMinute(Recipe r, ItemId item)
     {

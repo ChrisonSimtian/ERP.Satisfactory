@@ -114,6 +114,94 @@ public class OrToolsRecipePlannerTests
     }
 
     [Fact]
+    public void Node_aware_picks_Mk3_on_Pure_node_when_demand_justifies_it()
+    {
+        // 480 iron-ingot demand needs 480 ore/min upstream. A Pure-purity
+        // node hits 480/min only on Mk3 (Mk1 = 120, Mk2 = 240). LP should
+        // pick Mk3 with miner fraction 1.0 and report a single allocation.
+        var catalog = new FakeCatalog(
+            buildings: [new Building(SmelterId, "Smelter", BasePowerMw: 4)],
+            recipes: [IronIngotRecipe],
+            items: [new Item(IronOre, "Iron Ore"), new Item(IronIngot, "Iron Ingot")]);
+
+        var planner = new OrToolsRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(IronIngot, 480)],
+            Available: [],
+            Nodes: [new NodeAvailability("node-iron-pure", IronOre, NodePurity.Pure)]));
+
+        Assert.True(plan.IsFeasible);
+        var allocation = Assert.Single(plan.Allocations);
+        Assert.Equal(MinerTier.Mk3, allocation.Tier);
+        Assert.Equal("node-iron-pure", allocation.NodeReference);
+        Assert.InRange(allocation.MinerFraction, 1m - Tol, 1m + Tol);
+        Assert.InRange(allocation.OutputPerMinute, 480m - Tol, 480m + Tol);
+    }
+
+    [Fact]
+    public void Node_aware_mixes_tiers_across_pure_plus_normal_nodes()
+    {
+        // From the #92 acceptance criterion: 600/min iron from
+        //   1 Pure node  → Mk3 = 240 × 2 = 480/min max
+        //   1 Normal node → Mk3 = 240/min max, but only 120 more needed
+        // LP should pick Mk3 on Pure (saturated) + a lower-tier Mk2-or-Mk1
+        // on Normal sized to deliver 120/min.
+        var catalog = new FakeCatalog(
+            buildings: [new Building(SmelterId, "Smelter", BasePowerMw: 4)],
+            recipes: [IronIngotRecipe],
+            items: [new Item(IronOre, "Iron Ore"), new Item(IronIngot, "Iron Ingot")]);
+
+        var planner = new OrToolsRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(IronIngot, 600)],
+            Available: [],
+            Nodes: [
+                new NodeAvailability("pure-node", IronOre, NodePurity.Pure),
+                new NodeAvailability("normal-node", IronOre, NodePurity.Normal),
+            ]));
+
+        Assert.True(plan.IsFeasible);
+        Assert.Equal(2, plan.Allocations.Count);
+
+        var pure = plan.Allocations.Single(a => a.NodeReference == "pure-node");
+        Assert.Equal(MinerTier.Mk3, pure.Tier);
+        Assert.InRange(pure.OutputPerMinute, 480m - Tol, 480m + Tol);
+
+        var normal = plan.Allocations.Single(a => a.NodeReference == "normal-node");
+        // 120/min on a Normal node = Mk2 at full or Mk1 at full; the LP
+        // picks whichever is cheaper-per-output. Both produce exactly 120
+        // when their fraction is set to fill the gap. Just assert the
+        // numbers; tier choice between them isn't load-bearing here.
+        Assert.InRange(normal.OutputPerMinute, 120m - Tol, 120m + Tol);
+
+        var totalIron = plan.Allocations.Sum(a => a.OutputPerMinute);
+        Assert.InRange(totalIron, 600m - Tol, 600m + Tol);
+    }
+
+    [Fact]
+    public void Node_aware_reports_shortfall_when_node_capacity_exhausted()
+    {
+        // Mk1-only on an Impure node tops out at 30/min. Asking for 100
+        // ingots/min (= 100 ore/min) is infeasible — short by 70.
+        var catalog = new FakeCatalog(
+            buildings: [new Building(SmelterId, "Smelter", BasePowerMw: 4)],
+            recipes: [IronIngotRecipe],
+            items: [new Item(IronOre, "Iron Ore"), new Item(IronIngot, "Iron Ingot")]);
+
+        var planner = new OrToolsRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(IronIngot, 100)],
+            Available: [],
+            Nodes: [new NodeAvailability(
+                "impure-node", IronOre, NodePurity.Impure,
+                AvailableTiers: [MinerTier.Mk1])]));
+
+        Assert.False(plan.IsFeasible);
+        var missing = plan.MissingInputs.Single(m => m.Item == IronOre);
+        Assert.InRange(missing.QuantityShort, 70m - Tol, 70m + Tol);
+    }
+
+    [Fact]
     public void Byproducts_Reduce_Demand_On_Primary_Producer()
     {
         // Refinery recipe "Plastic" produces plastic + heavy oil residue as
