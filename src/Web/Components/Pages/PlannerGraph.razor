@@ -1,0 +1,347 @@
+@page "/planner/graph"
+@rendermode InteractiveServer
+@inject PlannerApiClient Api
+
+<PageTitle>Planner · Flow graph</PageTitle>
+
+<h1>Production-flow Graph</h1>
+
+<MudText Typo="Typo.body2" Class="mb-3">
+    Visualise the current plan as a left-to-right DAG of recipes. Raw inputs flow in on the left;
+    target items emerge on the right.
+</MudText>
+
+@if (items is null)
+{
+    <MudText><em>Loading catalogue...</em></MudText>
+}
+else
+{
+    <MudPaper Class="pa-3 mb-3" Outlined="true">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Sources (items/min available)</MudText>
+                @foreach (var row in sources)
+                {
+                    <div class="d-flex gap-2 mb-2 align-items-center">
+                        <MudAutocomplete T="CatalogItem"
+                                         Value="row.Item"
+                                         ValueChanged="@(i => row.Item = i)"
+                                         SearchFunc="@SearchItems"
+                                         ToStringFunc="@(i => i?.Name ?? string.Empty)"
+                                         Placeholder="Pick item"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Dense="true"
+                                         Clearable="true"
+                                         Style="min-width: 14rem;" />
+                        <MudNumericField T="decimal" @bind-Value="row.ItemsPerMinute"
+                                         Min="0" Step="1m"
+                                         Placeholder="items / min"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Style="max-width: 9rem;" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                       Color="Color.Error" Size="Size.Small"
+                                       Variant="Variant.Outlined"
+                                       OnClick="() => RemoveSource(row)" title="Remove" />
+                    </div>
+                }
+                <MudButton Variant="Variant.Outlined" OnClick="AddSource"
+                           StartIcon="@Icons.Material.Filled.Add">Add source</MudButton>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Sinks (items/min wanted)</MudText>
+                @foreach (var row in sinks)
+                {
+                    <div class="d-flex gap-2 mb-2 align-items-center">
+                        <MudAutocomplete T="CatalogItem"
+                                         Value="row.Item"
+                                         ValueChanged="@(i => row.Item = i)"
+                                         SearchFunc="@SearchItems"
+                                         ToStringFunc="@(i => i?.Name ?? string.Empty)"
+                                         Placeholder="Pick item"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Dense="true"
+                                         Clearable="true"
+                                         Style="min-width: 14rem;" />
+                        <MudNumericField T="decimal" @bind-Value="row.ItemsPerMinute"
+                                         Min="0" Step="1m"
+                                         Placeholder="items / min"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Style="max-width: 9rem;" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                       Color="Color.Error" Size="Size.Small"
+                                       Variant="Variant.Outlined"
+                                       OnClick="() => RemoveSink(row)" title="Remove" />
+                    </div>
+                }
+                <MudButton Variant="Variant.Outlined" OnClick="AddSink"
+                           StartIcon="@Icons.Material.Filled.Add">Add sink</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <div class="mt-3 d-flex gap-2 align-items-center flex-wrap">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="Compute" Disabled="@isComputing">
+                @(isComputing ? "Computing..." : "Compute & render")
+            </MudButton>
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <MudText HtmlTag="span" Color="Color.Error">@error</MudText>
+            }
+        </div>
+    </MudPaper>
+
+    @if (plan is null)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" data-testid="graph-empty">
+            No plan to graph yet — pick sinks above and press <strong>Compute &amp; render</strong>,
+            or visit <MudLink Href="planner">/planner</MudLink> to set one up first.
+        </MudAlert>
+    }
+    else if (plan.Steps.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+            Plan is empty — no production steps to graph (everything is already covered by sources).
+        </MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-2" Outlined="true" data-testid="graph-svg-wrap" Style="overflow-x: auto;">
+            @RenderGraphSvg(PlannerGraphLayout.Build(plan))
+        </MudPaper>
+    }
+}
+
+@code {
+    private CatalogItem[]? items;
+    private List<Row> sources = [new()];
+    private List<Row> sinks = [new()];
+    private PlanResponse? plan;
+    private string? error;
+    private bool isComputing;
+
+    private const int LabelOffsetY = -6;
+
+    protected override async Task OnInitializedAsync()
+    {
+        items = await Api.GetItemsAsync();
+    }
+
+    private Task<IEnumerable<CatalogItem>> SearchItems(string? value, CancellationToken ct)
+    {
+        if (items is null) return Task.FromResult<IEnumerable<CatalogItem>>([]);
+        if (string.IsNullOrWhiteSpace(value)) return Task.FromResult<IEnumerable<CatalogItem>>(items);
+        return Task.FromResult(items.Where(i => i.Name.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private void AddSource() => sources.Add(new());
+    private void RemoveSource(Row r) { sources.Remove(r); if (sources.Count == 0) sources.Add(new()); }
+    private void AddSink() => sinks.Add(new());
+    private void RemoveSink(Row r) { sinks.Remove(r); if (sinks.Count == 0) sinks.Add(new()); }
+
+    private async Task Compute()
+    {
+        error = null;
+        plan = null;
+        isComputing = true;
+        try
+        {
+            var request = new PlanRequest(
+                Targets:   sinks  .Where(r => r.Item is not null).Select(r => new TargetInput(r.Item!.Id, r.ItemsPerMinute)).ToList(),
+                Available: sources.Where(r => r.Item is not null).Select(r => new AvailabilityInput(r.Item!.Id, r.ItemsPerMinute)).ToList());
+
+            if (request.Targets.Count == 0)
+            {
+                error = "Add at least one sink.";
+                return;
+            }
+            plan = await Api.ComputePlanAsync(request);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isComputing = false;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // SVG rendering (inline RenderTreeBuilder so the page stays self-contained)
+    // -----------------------------------------------------------------------
+
+    private RenderFragment RenderGraphSvg(PlannerGraphLayout.Layout layout) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "svg");
+        builder.AddAttribute(seq++, "xmlns", "http://www.w3.org/2000/svg");
+        builder.AddAttribute(seq++, "viewBox", $"0 0 {PlannerGraphLayout.Fmt(layout.Width)} {PlannerGraphLayout.Fmt(layout.Height)}");
+        builder.AddAttribute(seq++, "width", PlannerGraphLayout.Fmt(layout.Width));
+        builder.AddAttribute(seq++, "height", PlannerGraphLayout.Fmt(layout.Height));
+        builder.AddAttribute(seq++, "data-testid", "graph-svg");
+        builder.AddAttribute(seq++, "style", "font-family: -apple-system, Segoe UI, sans-serif;");
+
+        builder.OpenElement(seq++, "defs");
+        builder.OpenElement(seq++, "marker");
+        builder.AddAttribute(seq++, "id", "fx-arrow");
+        builder.AddAttribute(seq++, "viewBox", "0 0 10 10");
+        builder.AddAttribute(seq++, "refX", "9");
+        builder.AddAttribute(seq++, "refY", "5");
+        builder.AddAttribute(seq++, "markerWidth", "8");
+        builder.AddAttribute(seq++, "markerHeight", "8");
+        builder.AddAttribute(seq++, "orient", "auto-start-reverse");
+        builder.OpenElement(seq++, "path");
+        builder.AddAttribute(seq++, "d", "M 0 0 L 10 5 L 0 10 z");
+        builder.AddAttribute(seq++, "fill", "#5a6f88");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+
+        // 1. Edges first so nodes render on top.
+        foreach (var edge in layout.Edges)
+        {
+            var (x1, y1) = PlannerGraphLayout.SourceMidRight(edge, layout);
+            var (x2, y2) = PlannerGraphLayout.TargetMidLeft(edge, layout);
+            if (double.IsNaN(x1) || double.IsNaN(x2)) continue;
+
+            var cx1 = x1 + (x2 - x1) * 0.5;
+            var cx2 = x1 + (x2 - x1) * 0.5;
+            var d = $"M {PlannerGraphLayout.Fmt(x1)} {PlannerGraphLayout.Fmt(y1)} C {PlannerGraphLayout.Fmt(cx1)} {PlannerGraphLayout.Fmt(y1)} {PlannerGraphLayout.Fmt(cx2)} {PlannerGraphLayout.Fmt(y2)} {PlannerGraphLayout.Fmt(x2)} {PlannerGraphLayout.Fmt(y2)}";
+
+            builder.OpenElement(seq++, "path");
+            builder.AddAttribute(seq++, "d", d);
+            builder.AddAttribute(seq++, "fill", "none");
+            builder.AddAttribute(seq++, "stroke", "#5a6f88");
+            builder.AddAttribute(seq++, "stroke-width", "1.5");
+            builder.AddAttribute(seq++, "marker-end", "url(#fx-arrow)");
+            builder.AddAttribute(seq++, "data-edge-item", edge.ItemId);
+            builder.CloseElement();
+
+            var mx = (x1 + x2) / 2.0;
+            var my = (y1 + y2) / 2.0 + LabelOffsetY;
+            builder.OpenElement(seq++, "text");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(mx));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(my));
+            builder.AddAttribute(seq++, "font-size", "10");
+            builder.AddAttribute(seq++, "fill", "#33425a");
+            builder.AddAttribute(seq++, "text-anchor", "middle");
+            builder.AddContent(seq++, $"{FormatRate(edge.ItemsPerMinute)} {edge.ItemName} / min");
+            builder.CloseElement();
+        }
+
+        // 2. Raw-input pseudo-nodes (dashed border for visual distinction).
+        foreach (var raw in layout.Raws)
+        {
+            builder.OpenElement(seq++, "g");
+            builder.AddAttribute(seq++, "data-raw-id", raw.ItemId);
+
+            builder.OpenElement(seq++, "rect");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(raw.X));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(raw.Y));
+            builder.AddAttribute(seq++, "width", PlannerGraphLayout.RawColumnWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            builder.AddAttribute(seq++, "height", PlannerGraphLayout.NodeHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            builder.AddAttribute(seq++, "rx", "6");
+            builder.AddAttribute(seq++, "ry", "6");
+            builder.AddAttribute(seq++, "fill", "#eef3f8");
+            builder.AddAttribute(seq++, "stroke", "#8aa0b8");
+            builder.AddAttribute(seq++, "stroke-dasharray", "4 3");
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "text");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(raw.X + PlannerGraphLayout.RawColumnWidth / 2.0));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(raw.Y + PlannerGraphLayout.NodeHeight / 2.0 - 4));
+            builder.AddAttribute(seq++, "font-size", "11");
+            builder.AddAttribute(seq++, "fill", "#33425a");
+            builder.AddAttribute(seq++, "text-anchor", "middle");
+            builder.AddAttribute(seq++, "font-weight", "600");
+            builder.AddContent(seq++, "RAW");
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "text");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(raw.X + PlannerGraphLayout.RawColumnWidth / 2.0));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(raw.Y + PlannerGraphLayout.NodeHeight / 2.0 + 12));
+            builder.AddAttribute(seq++, "font-size", "11");
+            builder.AddAttribute(seq++, "fill", "#33425a");
+            builder.AddAttribute(seq++, "text-anchor", "middle");
+            builder.AddContent(seq++, raw.ItemName);
+            builder.CloseElement();
+
+            builder.CloseElement();
+        }
+
+        // 3. Recipe nodes.
+        foreach (var node in layout.Nodes)
+        {
+            builder.OpenElement(seq++, "g");
+            builder.AddAttribute(seq++, "data-step-id", node.Step.RecipeId);
+            builder.AddAttribute(seq++, "data-step-index", node.StepIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            builder.OpenElement(seq++, "rect");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(node.X));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(node.Y));
+            builder.AddAttribute(seq++, "width", PlannerGraphLayout.NodeWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            builder.AddAttribute(seq++, "height", PlannerGraphLayout.NodeHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            builder.AddAttribute(seq++, "rx", "6");
+            builder.AddAttribute(seq++, "ry", "6");
+            builder.AddAttribute(seq++, "fill", "#fff7e0");
+            builder.AddAttribute(seq++, "stroke", "#c19a3c");
+            builder.AddAttribute(seq++, "stroke-width", "1.5");
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "text");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(node.X + PlannerGraphLayout.NodeWidth / 2.0));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(node.Y + 20));
+            builder.AddAttribute(seq++, "font-size", "12");
+            builder.AddAttribute(seq++, "font-weight", "600");
+            builder.AddAttribute(seq++, "fill", "#2a2a2a");
+            builder.AddAttribute(seq++, "text-anchor", "middle");
+            builder.AddContent(seq++, Truncate(node.Step.RecipeName, 26));
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "text");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(node.X + PlannerGraphLayout.NodeWidth / 2.0));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(node.Y + 38));
+            builder.AddAttribute(seq++, "font-size", "11");
+            builder.AddAttribute(seq++, "fill", "#33425a");
+            builder.AddAttribute(seq++, "text-anchor", "middle");
+            builder.AddContent(seq++, $"{FormatCount(node.Step.BuildingCount)} bldg · {FormatPower(node.Step.PowerMw)} MW");
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "text");
+            builder.AddAttribute(seq++, "x", PlannerGraphLayout.Fmt(node.X + PlannerGraphLayout.NodeWidth / 2.0));
+            builder.AddAttribute(seq++, "y", PlannerGraphLayout.Fmt(node.Y + 52));
+            builder.AddAttribute(seq++, "font-size", "10");
+            builder.AddAttribute(seq++, "fill", "#5a6f88");
+            builder.AddAttribute(seq++, "text-anchor", "middle");
+            builder.AddContent(seq++, Truncate(node.Step.BuildingName, 30));
+            builder.CloseElement();
+
+            builder.CloseElement();
+        }
+
+        builder.CloseElement(); // </svg>
+    };
+
+    private static string FormatRate(decimal rate) =>
+        rate == Math.Floor(rate) ? rate.ToString("0") : rate.ToString("0.##");
+
+    private static string FormatCount(decimal count) =>
+        count.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string FormatPower(decimal mw) =>
+        mw == Math.Floor(mw) ? mw.ToString("0") : mw.ToString("0.##");
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s : s[..(max - 1)] + "…";
+
+    private sealed class Row
+    {
+        public CatalogItem? Item { get; set; }
+        public decimal ItemsPerMinute { get; set; }
+    }
+}
