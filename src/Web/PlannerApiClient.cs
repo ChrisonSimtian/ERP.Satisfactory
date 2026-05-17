@@ -275,6 +275,7 @@ public sealed record FactoryStateViewModel(
     IReadOnlyList<BuildingGroupViewModel> Buildings,
     int BuildingsWithRecipe,
     IReadOnlyList<CountViewModel> Belts,
+    IReadOnlyList<CountViewModel> Pipelines,
     IReadOnlyList<CountViewModel> Generators,
     int ResourceNodeCount,
     IReadOnlyList<string> Warnings);
