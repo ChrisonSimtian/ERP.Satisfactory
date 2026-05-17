@@ -204,7 +204,20 @@ public sealed record RecipeView(
 
 public sealed record TargetInput(string ItemId, decimal ItemsPerMinute);
 public sealed record AvailabilityInput(string ItemId, decimal ItemsPerMinute);
-public sealed record PlanRequest(IReadOnlyList<TargetInput> Targets, IReadOnlyList<AvailabilityInput> Available);
+
+/// <summary>Optional per-request node binding (#92). Server picks the
+/// best miner tier (out of <c>AvailableTiers</c>) per node to minimise
+/// total power. Empty <c>AvailableTiers</c> means all three are open.</summary>
+public sealed record NodeAvailabilityInput(
+    string NodeReference,
+    string Resource,
+    string Purity,
+    IReadOnlyList<string>? AvailableTiers);
+
+public sealed record PlanRequest(
+    IReadOnlyList<TargetInput> Targets,
+    IReadOnlyList<AvailabilityInput> Available,
+    IReadOnlyList<NodeAvailabilityInput>? Nodes = null);
 
 public sealed record AmountView(string ItemId, string ItemName, decimal ItemsPerMinute);
 public sealed record StepView(
@@ -222,7 +235,19 @@ public sealed record PlanResponse(
     IReadOnlyList<StepView> Steps,
     decimal TotalPowerMw,
     IReadOnlyList<AmountView> RawInputsConsumed,
-    IReadOnlyList<MissingInputView> MissingInputs);
+    IReadOnlyList<MissingInputView> MissingInputs,
+    IReadOnlyList<ExtractorAllocationView> ExtractorAllocations);
+
+/// <summary>Per-node extraction breakdown (#92). Empty when the request
+/// didn't include any node bindings.</summary>
+public sealed record ExtractorAllocationView(
+    string NodeReference,
+    string Resource,
+    string ResourceName,
+    string Purity,
+    string Tier,
+    decimal MinerFraction,
+    decimal OutputPerMinute);
 
 /// <summary>Per-item diagnostic for an unsatisfied target (#8).
 /// <c>ItemId</c> + <c>ItemName</c> + <c>ItemsPerMinute</c> match the previous

@@ -421,7 +421,14 @@ app.MapPost("/plan", async (PlanRequest request, IMessageBus bus, ICatalogProvid
 
     var query = new PlanProductionQuery(
         Targets: request.Targets.Select(t => new ProductionTarget(new ItemId(t.ItemId), t.ItemsPerMinute)).ToList(),
-        Available: request.Available.Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList());
+        Available: request.Available.Select(a => new ResourceAvailability(new ItemId(a.ItemId), a.ItemsPerMinute)).ToList(),
+        Nodes: request.Nodes?.Select(n => new NodeAvailability(
+            NodeReference: n.NodeReference,
+            Resource: new ItemId(n.Resource),
+            Purity: Enum.TryParse<NodePurity>(n.Purity, ignoreCase: true, out var p) ? p : NodePurity.Normal,
+            AvailableTiers: n.AvailableTiers?
+                .Select(s => Enum.TryParse<MinerTier>(s, ignoreCase: true, out var t) ? t : MinerTier.Mk1)
+                .ToList())).ToList());
 
     var logger = loggerFactory.CreateLogger("PlannerEndpoint");
     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -852,7 +859,32 @@ public sealed record FactoryStateGeoJson(
 
 public sealed record TargetDto(string ItemId, decimal ItemsPerMinute);
 public sealed record AvailabilityDto(string ItemId, decimal ItemsPerMinute);
-public sealed record PlanRequest(IReadOnlyList<TargetDto> Targets, IReadOnlyList<AvailabilityDto> Available);
+
+/// <summary>Node binding for <see cref="PlanRequest"/> (#92). <c>Purity</c>
+/// and <c>AvailableTiers</c> are case-insensitive enum names
+/// ("Impure"/"Normal"/"Pure", "Mk1"/"Mk2"/"Mk3") so the JSON stays
+/// readable. <c>AvailableTiers</c> empty/null means all three.</summary>
+public sealed record NodeAvailabilityDto(
+    string NodeReference,
+    string Resource,
+    string Purity,
+    IReadOnlyList<string>? AvailableTiers);
+
+/// <summary>Per-node extraction breakdown returned in <see cref="PlanDto"/>
+/// when the request included <see cref="PlanRequest.Nodes"/>.</summary>
+public sealed record ExtractorAllocationDto(
+    string NodeReference,
+    string Resource,
+    string ResourceName,
+    string Purity,
+    string Tier,
+    decimal MinerFraction,
+    decimal OutputPerMinute);
+
+public sealed record PlanRequest(
+    IReadOnlyList<TargetDto> Targets,
+    IReadOnlyList<AvailabilityDto> Available,
+    IReadOnlyList<NodeAvailabilityDto>? Nodes = null);
 
 public sealed record AmountDto(string ItemId, string ItemName, decimal ItemsPerMinute);
 public sealed record StepDto(
@@ -919,7 +951,8 @@ public sealed record PlanDto(
     IReadOnlyList<StepDto> Steps,
     decimal TotalPowerMw,
     IReadOnlyList<AmountDto> RawInputsConsumed,
-    IReadOnlyList<MissingInputDto> MissingInputs)
+    IReadOnlyList<MissingInputDto> MissingInputs,
+    IReadOnlyList<ExtractorAllocationDto> ExtractorAllocations)
 {
     public static PlanDto From(ProductionPlan plan, ICatalogProvider catalog)
     {
@@ -938,6 +971,16 @@ public sealed record PlanDto(
                 CouldBeProducedBy: m.CouldBeProducedBy.Select(ToRecipeRef).ToList(),
                 TopConsumers: m.TopConsumers.Select(ToRecipeRef).ToList());
 
+        ExtractorAllocationDto ToAllocation(ExtractorAllocation a) =>
+            new(
+                NodeReference: a.NodeReference,
+                Resource: a.Resource.Value,
+                ResourceName: catalog.FindItem(a.Resource)?.Name ?? a.Resource.Value,
+                Purity: a.Purity.ToString(),
+                Tier: a.Tier.ToString(),
+                MinerFraction: Math.Round(a.MinerFraction, 4),
+                OutputPerMinute: Math.Round(a.OutputPerMinute, 4));
+
         var steps = plan.Steps.Select(s => new StepDto(
             s.Recipe.Id.Value,
             s.Recipe.Name,
@@ -953,6 +996,7 @@ public sealed record PlanDto(
             Steps: steps,
             TotalPowerMw: Math.Round(steps.Sum(s => s.PowerMw), 4),
             RawInputsConsumed: plan.RawInputsConsumed.Select(ToAmount).ToList(),
-            MissingInputs: plan.MissingInputs.Select(ToMissing).ToList());
+            MissingInputs: plan.MissingInputs.Select(ToMissing).ToList(),
+            ExtractorAllocations: plan.Allocations.Select(ToAllocation).ToList());
     }
 }
