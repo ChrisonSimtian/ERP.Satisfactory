@@ -94,6 +94,7 @@ public static class PersistenceServiceCollectionExtensions
 
         services.AddScoped<IPlanRepository, PlanRepository>();
         services.AddScoped<IPlanShareRepository, PlanShareRepository>();
+        services.AddScoped<IFactoryAlertRepository, FactoryAlertRepository>();
         return services;
     }
 }

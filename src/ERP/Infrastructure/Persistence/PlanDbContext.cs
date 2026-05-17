@@ -29,6 +29,8 @@ public class PlanDbContext : DbContext
 
     public DbSet<PlanShareToken> PlanShareTokens => Set<PlanShareToken>();
 
+    public DbSet<FactoryAlert> FactoryAlerts => Set<FactoryAlert>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PlanDbContext).Assembly);

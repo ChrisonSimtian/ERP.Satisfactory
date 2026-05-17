@@ -118,6 +118,15 @@ app.MapGet("/factory/saves", () =>
         .Select(f => new DetectedSaveView(f.FullName, f.Name, f.LastWriteTimeUtc, f.Length))
         .ToList());
 
+// Active factory bottleneck alerts (#116). Read by the ADA agent so she leads
+// with active alerts on each user turn. Empty list when nothing's flagged.
+// Writes happen post-ingest via the analysis service (separate PR).
+app.MapGet("/factory/alerts", async (IFactoryAlertRepository repo, CancellationToken ct) =>
+{
+    var alerts = await repo.ListActiveAsync(ct);
+    return Results.Ok(alerts.Select(FactoryAlertView.From).ToList());
+});
+
 // Backing endpoint for the in-app filesystem picker (issue #84). Lists the
 // directory at `path` so the Blazor `PathPickerDialog` can render breadcrumbs +
 // folder/file rows. Read-only enumeration of an inherently-local dev tool —
@@ -547,6 +556,23 @@ public sealed record IngestSaveRequest(string SavePath);
 public sealed record NodeOverrideRequest(string Reference, string Resource, string Purity);
 
 public sealed record DetectedSaveView(string Path, string Name, DateTime LastWriteTimeUtc, long SizeBytes);
+
+/// <summary>Wire shape for <c>GET /factory/alerts</c> (#116).
+/// Severity is the enum name (string) so the JSON reads cleanly and ADA can
+/// pattern-match on it without a separate vocabulary mapping.</summary>
+public sealed record FactoryAlertView(
+    Guid Id,
+    string Key,
+    string Severity,
+    string Source,
+    string Title,
+    string Detail,
+    string Fix,
+    DateTime CreatedUtc)
+{
+    public static FactoryAlertView From(FactoryAlert a) =>
+        new(a.Id, a.Key, a.Severity.ToString(), a.Source, a.Title, a.Detail, a.Fix, a.CreatedUtc);
+}
 
 /// <summary>One row in the in-app filesystem picker (issue #84).</summary>
 public sealed record FsEntryView(string Name, string FullPath, bool IsDirectory, DateTime LastWriteTimeUtc, long? SizeBytes);
