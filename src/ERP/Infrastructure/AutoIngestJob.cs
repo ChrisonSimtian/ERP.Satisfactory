@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using ERP.Application;
 using ERP.Application.Commands.IngestSave;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Satisfactory.Save;
@@ -27,18 +28,18 @@ public sealed class AutoIngestJob
     public const string FunctionName = "auto-ingest-sav-watcher";
 
     private readonly IFactoryStateProvider _stateProvider;
-    private readonly IMessageBus _bus;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<FactoryStateOptions> _stateOptions;
     private readonly ILogger<AutoIngestJob> _logger;
 
     public AutoIngestJob(
         IFactoryStateProvider stateProvider,
-        IMessageBus bus,
+        IServiceScopeFactory scopeFactory,
         IOptionsMonitor<FactoryStateOptions> stateOptions,
         ILogger<AutoIngestJob> logger)
     {
         _stateProvider = stateProvider;
-        _bus = bus;
+        _scopeFactory = scopeFactory;
         _stateOptions = stateOptions;
         _logger = logger;
     }
@@ -73,7 +74,11 @@ public sealed class AutoIngestJob
         var sw = Stopwatch.StartNew();
         try
         {
-            await _bus.InvokeAsync<FactoryStateStatus>(new IngestSaveCommand(latest), cancellationToken);
+            // IMessageBus is scoped; resolve per-tick so the singleton job
+            // doesn't capture a stale or invalid scope.
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+            await bus.InvokeAsync<FactoryStateStatus>(new IngestSaveCommand(latest), cancellationToken);
             sw.Stop();
             _logger.LogInformation("Auto-ingested save in {Elapsed}ms.", sw.ElapsedMilliseconds);
         }
