@@ -41,13 +41,16 @@ public sealed class RecursiveRecipePlanner : IRecipePlanner
             .Select(a => BuildStep(a.Recipe, a.OutputRatePerMinute))
             .ToList();
 
+        var rawInputs = rawConsumed.Select(kv => new ItemAmount(kv.Key, kv.Value)).ToList();
+
         return new ProductionPlan(
             Targets: query.Targets,
             Available: query.Available,
             Steps: steps,
-            RawInputsConsumed: rawConsumed.Select(kv => new ItemAmount(kv.Key, kv.Value)).ToList(),
+            RawInputsConsumed: rawInputs,
             MissingInputs: InfeasibilityDiagnostics.Build(missing, _catalog, steps),
-            Warnings: PowerVarianceWarning.Build(steps));
+            Warnings: PowerVarianceWarning.Build(steps),
+            FluidPipes: FluidPipeRequirements.Build(steps, rawInputs));
     }
 
     private void Expand(

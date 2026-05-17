@@ -80,6 +80,38 @@ public class RecursiveRecipePlannerTests
     }
 
     [Fact]
+    public void Populates_Fluid_Pipe_Requirements_For_Fluid_Outputs()
+    {
+        // RecursiveRecipePlanner must also call FluidPipeRequirements (#90) —
+        // it's a post-solve property, not an engine-specific concern. Build a
+        // recipe that emits 480/min of Heavy Oil Residue (the issue's
+        // acceptance example) and check the plan flags Mk2.
+        var refineryId = new BuildingId("Build_OilRefinery_C");
+        var crudeOil = new ItemId("Desc_LiquidOil_C");
+        var heavyOilResidue = new ItemId("Desc_HeavyOilResidue_C");
+        var residueRecipe = new Recipe(
+            new RecipeId("Recipe_ResidueOverMk1_C"),
+            "Residue (over Mk1)",
+            refineryId,
+            Inputs: [new ItemAmount(crudeOil, 1)],
+            Outputs: [new ItemAmount(heavyOilResidue, 8)],
+            Duration: TimeSpan.FromSeconds(1));
+
+        var catalog = new FakeCatalog(
+            buildings: [new Building(refineryId, "Refinery", BasePowerMw: 30)],
+            recipes: [residueRecipe]);
+
+        var planner = new RecursiveRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(heavyOilResidue, 480)],
+            Available: [new ResourceAvailability(crudeOil, 999)]));
+
+        var residue = plan.Pipes.Single(p => p.Item == heavyOilResidue);
+        Assert.Equal(480m, residue.MaxRatePerMinute);
+        Assert.Equal(PipeTier.Mk2, residue.RecommendedTier);
+    }
+
+    [Fact]
     public void Power_Is_Zero_When_Building_Missing_From_Catalogue()
     {
         // Missing building entry → defensive zero rather than throwing.
