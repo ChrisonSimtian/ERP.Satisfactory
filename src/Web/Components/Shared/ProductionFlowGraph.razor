@@ -1,0 +1,421 @@
+@* =========================================================================
+   ProductionFlowGraph.razor
+
+   Renders a PlanResponse's Steps as an SVG recipe-tree (DAG) — nodes are
+   recipes (with building count + power), edges are item flows (stroke
+   weight scales with items/min). Byproducts show as dimmed dashed edges
+   to a terminal "out" marker so the user can tell at a glance which
+   outputs aren't being consumed downstream.
+
+   Pure-SVG implementation: no JS dependency, no Cytoscape/D3 vendor drop.
+   At Tier 4–6 plan sizes (≤ ~80 steps) layout cost is negligible and
+   re-renders are flicker-free — Blazor diffs the SVG inline like any
+   other markup.
+
+   Layout: simple longest-path layering. Steps are bucketed into columns
+   by their producer-depth (raw → tier 1 → tier 2 …), then stacked
+   vertically within each column. Edges are cubic Béziers between the
+   right edge of the producer and the left edge of the consumer.
+
+   Not in scope (issue #89): drill-into-recipe modal, alt-recipe picker,
+   editing on the graph, map overlay.
+   ========================================================================= *@
+
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+
+@if (Plan is null || Plan.Steps.Count == 0)
+{
+    <MudPaper Class="pa-6 d-flex flex-column align-items-center justify-center fx-graph-empty" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Large" Color="Color.Default" />
+        <MudText Typo="Typo.h6" Class="mt-2">No plan to graph yet</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Default">
+            Pick a sink and hit <strong>Compute plan</strong> — the production-flow graph
+            shows up here once the planner has steps to lay out.
+        </MudText>
+    </MudPaper>
+}
+else
+{
+    var graph = BuildLayout(Plan);
+
+    <div class="fx-graph-shell" data-testid="production-flow-graph">
+        <div class="fx-graph-legend">
+            <span class="fx-graph-legend-item"><span class="fx-legend-swatch fx-legend-swatch-node"></span> Recipe (building × count)</span>
+            <span class="fx-graph-legend-item"><span class="fx-legend-edge"></span> Item flow (thicker = higher rate)</span>
+            <span class="fx-graph-legend-item"><span class="fx-legend-edge fx-legend-edge-byproduct"></span> Byproduct (no consumer)</span>
+        </div>
+
+        <div class="fx-graph-scroll">
+            <svg class="fx-graph-svg"
+                 width="@graph.Width.ToString(CultureInfo.InvariantCulture)"
+                 height="@graph.Height.ToString(CultureInfo.InvariantCulture)"
+                 viewBox="0 0 @graph.Width.ToString(CultureInfo.InvariantCulture) @graph.Height.ToString(CultureInfo.InvariantCulture)"
+                 xmlns="http://www.w3.org/2000/svg">
+
+                <defs>
+                    @* Reused arrow head for both consumed edges and dangling byproducts. *@
+                    <marker id="fx-graph-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fx-orange, #FA9549)" />
+                    </marker>
+                    <marker id="fx-graph-arrow-byproduct" viewBox="0 0 10 10" refX="9" refY="5"
+                            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fx-text-muted, #9A9AA0)" />
+                    </marker>
+                </defs>
+
+                @* Edges first so nodes paint on top. *@
+                @foreach (var edge in graph.Edges)
+                {
+                    var dasharray = edge.IsByproduct ? "5 4" : "";
+                    var stroke = edge.IsByproduct ? "var(--fx-text-muted, #9A9AA0)" : "var(--fx-orange, #FA9549)";
+                    var marker = edge.IsByproduct ? "url(#fx-graph-arrow-byproduct)" : "url(#fx-graph-arrow)";
+                    <g class="fx-graph-edge @(edge.IsByproduct ? "fx-graph-edge-byproduct" : "")">
+                        <path d="@edge.Path"
+                              fill="none"
+                              stroke="@stroke"
+                              stroke-width="@edge.Width.ToString("0.##", CultureInfo.InvariantCulture)"
+                              stroke-dasharray="@dasharray"
+                              marker-end="@marker"
+                              opacity="@(edge.IsByproduct ? "0.7" : "0.85")" />
+                        <title>@edge.Tooltip</title>
+                    </g>
+
+                    @if (edge.IsByproduct)
+                    {
+                        <g class="fx-graph-byproduct-cap">
+                            <circle cx="@edge.TargetX.ToString("0.##", CultureInfo.InvariantCulture)"
+                                    cy="@edge.TargetY.ToString("0.##", CultureInfo.InvariantCulture)"
+                                    r="6"
+                                    fill="var(--fx-bg-panel, #1A1A22)"
+                                    stroke="var(--fx-text-muted, #9A9AA0)"
+                                    stroke-dasharray="2 2" />
+                        </g>
+                    }
+
+                    <g class="fx-graph-edge-label">
+                        <rect x="@((edge.LabelX - edge.LabelWidth / 2).ToString("0.##", CultureInfo.InvariantCulture))"
+                              y="@((edge.LabelY - 9).ToString("0.##", CultureInfo.InvariantCulture))"
+                              width="@edge.LabelWidth.ToString("0.##", CultureInfo.InvariantCulture)"
+                              height="18"
+                              rx="3"
+                              fill="var(--fx-bg-panel, #1A1A22)"
+                              stroke="var(--fx-border, #2A2A33)"
+                              stroke-width="1" />
+                        <text x="@edge.LabelX.ToString("0.##", CultureInfo.InvariantCulture)"
+                              y="@(edge.LabelY + 4).ToString(CultureInfo.InvariantCulture)"
+                              text-anchor="middle"
+                              class="fx-graph-edge-text">@edge.Label</text>
+                    </g>
+                }
+
+                @foreach (var node in graph.Nodes)
+                {
+                    <g class="fx-graph-node" transform="translate(@node.X.ToString("0.##", CultureInfo.InvariantCulture) @node.Y.ToString("0.##", CultureInfo.InvariantCulture))">
+                        <rect width="@NodeWidth" height="@NodeHeight" rx="6"
+                              fill="var(--fx-bg-elevated, #22222C)"
+                              stroke="var(--fx-orange, #FA9549)"
+                              stroke-width="1.5" />
+                        <text x="10" y="20" class="fx-graph-node-title">@Trim(node.Step.RecipeName, 32)</text>
+                        <text x="10" y="38" class="fx-graph-node-sub">@Trim(node.Step.BuildingName, 26) × @FormatCount(node.Step.BuildingCount)</text>
+                        <text x="10" y="54" class="fx-graph-node-meta">@FormatPower(node.Step.PowerMw) MW</text>
+                        <title>@($"{node.Step.RecipeName}\n{node.Step.BuildingName} × {FormatCount(node.Step.BuildingCount)}\nPower: {FormatPower(node.Step.PowerMw)} MW")</title>
+                    </g>
+                }
+            </svg>
+        </div>
+
+        <MudText Typo="Typo.caption" Color="Color.Default" Class="d-block mt-2">
+            @graph.Nodes.Count nodes · @graph.Edges.Count edges · scroll horizontally for wide plans
+        </MudText>
+    </div>
+}
+
+@code {
+    /// <summary>The current plan to visualise. <c>null</c> or empty Steps
+    /// shows the "no plan yet" placeholder.</summary>
+    [Parameter] public PlanResponse? Plan { get; set; }
+
+    private const int NodeWidth = 220;
+    private const int NodeHeight = 64;
+    private const int ColumnGap = 110;     // horizontal space between node columns (edge area)
+    private const int RowGap = 28;         // vertical gap between siblings in a column
+    private const int Padding = 24;        // outer SVG padding
+    private const double MinEdgeStroke = 1.2;
+    private const double MaxEdgeStroke = 8.0;
+
+    private static string FormatCount(decimal value) =>
+        value == Math.Floor(value) ? value.ToString("0", CultureInfo.InvariantCulture)
+                                   : value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string FormatPower(decimal mw) =>
+        mw == Math.Floor(mw) ? mw.ToString("0", CultureInfo.InvariantCulture)
+                             : mw.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string FormatRate(decimal rate) =>
+        rate == Math.Floor(rate) ? rate.ToString("0", CultureInfo.InvariantCulture)
+                                 : rate.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Trim(string s, int max) =>
+        s.Length <= max ? s : s[..(max - 1)] + "…";
+
+    private static GraphLayout BuildLayout(PlanResponse plan)
+    {
+        var steps = plan.Steps;
+        var nodeCount = steps.Count;
+
+        // 1) Index step → set of output ItemIds. Used both for column
+        //    layering (consumers go to the right of producers) and for
+        //    byproduct detection (any output whose item isn't consumed by
+        //    another step is "dangling").
+        var producerOfItem = new Dictionary<string, int>(); // itemId → producer step index
+        for (var i = 0; i < nodeCount; i++)
+        {
+            foreach (var output in steps[i].Outputs)
+            {
+                // Multiple recipes producing the same item: first writer wins.
+                // The planner today produces a single recipe per item in the
+                // recursive expander; if that ever changes, the layout still
+                // renders — duplicates just collapse into one edge per
+                // consumer.
+                producerOfItem.TryAdd(output.ItemId, i);
+            }
+        }
+
+        // 2) Longest-path layering: a node's column is 1 + max(producer
+        //    column) over its consumed inputs. Inputs sourced from raw /
+        //    availability (no producer in plan.Steps) don't push the
+        //    column, so raw-consumers stay at column 0.
+        var columnOf = new int[nodeCount];
+        var memo = new int?[nodeCount];
+        for (var i = 0; i < nodeCount; i++)
+        {
+            columnOf[i] = ComputeColumn(i, steps, producerOfItem, memo);
+        }
+
+        // 3) Group nodes by column and assign Y positions.
+        var byColumn = new Dictionary<int, List<int>>();
+        var maxColumn = 0;
+        for (var i = 0; i < nodeCount; i++)
+        {
+            var col = columnOf[i];
+            if (col > maxColumn) maxColumn = col;
+            if (!byColumn.TryGetValue(col, out var list))
+            {
+                list = new List<int>();
+                byColumn[col] = list;
+            }
+            list.Add(i);
+        }
+
+        var nodes = new List<NodeBox>(nodeCount);
+        var positionOf = new (double X, double Y)[nodeCount];
+        for (var c = 0; c <= maxColumn; c++)
+        {
+            if (!byColumn.TryGetValue(c, out var list)) continue;
+            // Stable within-column ordering (recipe name) — keeps re-renders
+            // identical between recomputes that produce the same step set in
+            // a different order.
+            list.Sort((a, b) => string.Compare(steps[a].RecipeName, steps[b].RecipeName, StringComparison.Ordinal));
+            for (var row = 0; row < list.Count; row++)
+            {
+                var stepIdx = list[row];
+                var x = Padding + c * (NodeWidth + ColumnGap);
+                var y = Padding + row * (NodeHeight + RowGap);
+                positionOf[stepIdx] = (x, y);
+                nodes.Add(new NodeBox(stepIdx, steps[stepIdx], x, y));
+            }
+        }
+
+        // 4) Compute max stroke scale across all edges so we can normalise
+        //    line thickness regardless of the plan's absolute scale.
+        decimal maxRate = 1m;
+        for (var i = 0; i < nodeCount; i++)
+        {
+            foreach (var amount in steps[i].Outputs)
+                if (amount.ItemsPerMinute > maxRate) maxRate = amount.ItemsPerMinute;
+        }
+
+        // 5) Build edges. Each consumer's input that has a producer in the
+        //    plan becomes one edge; outputs with no in-plan consumer become
+        //    dangling byproduct edges to a terminal "out" cap drawn just
+        //    to the right of the producer.
+        var edges = new List<EdgeShape>();
+
+        // Track per-output how many distinct consumers exist so we can mark
+        // outputs with zero downstream consumers as byproducts.
+        var consumedItems = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < nodeCount; i++)
+        {
+            foreach (var input in steps[i].Inputs)
+            {
+                if (producerOfItem.ContainsKey(input.ItemId))
+                    consumedItems.Add(input.ItemId);
+            }
+        }
+
+        for (var consumer = 0; consumer < nodeCount; consumer++)
+        {
+            foreach (var input in steps[consumer].Inputs)
+            {
+                if (!producerOfItem.TryGetValue(input.ItemId, out var producer)) continue;
+                if (producer == consumer) continue; // self-loop guard
+
+                var (px, py) = positionOf[producer];
+                var (cx, cy) = positionOf[consumer];
+
+                // Producer right edge → consumer left edge.
+                var x1 = px + NodeWidth;
+                var y1 = py + NodeHeight / 2.0;
+                var x2 = cx;
+                var y2 = cy + NodeHeight / 2.0;
+
+                var strokeW = ScaleStroke(input.ItemsPerMinute, maxRate);
+                var path = BezierPath(x1, y1, x2, y2);
+                var label = $"{FormatRate(input.ItemsPerMinute)} {Trim(input.ItemName, 18)}";
+                var labelWidth = EstimateLabelWidth(label);
+
+                edges.Add(new EdgeShape(
+                    Path: path,
+                    Width: strokeW,
+                    Label: label,
+                    LabelX: (x1 + x2) / 2.0,
+                    LabelY: (y1 + y2) / 2.0,
+                    LabelWidth: labelWidth,
+                    Tooltip: $"{FormatRate(input.ItemsPerMinute)} {input.ItemName}/min  ({steps[producer].RecipeName} → {steps[consumer].RecipeName})",
+                    IsByproduct: false,
+                    TargetX: x2,
+                    TargetY: y2));
+            }
+        }
+
+        // Byproducts: outputs not consumed by any step in the plan.
+        for (var producer = 0; producer < nodeCount; producer++)
+        {
+            // Stagger multiple byproducts of the same producer vertically so
+            // they don't overlap. We count outputs that qualify so we can
+            // distribute them around the node's right edge.
+            var byproductOutputs = steps[producer].Outputs.Where(o => !consumedItems.Contains(o.ItemId)).ToList();
+            if (byproductOutputs.Count == 0) continue;
+
+            var (px, py) = positionOf[producer];
+            var x1 = px + NodeWidth;
+            var y1Center = py + NodeHeight / 2.0;
+
+            for (var b = 0; b < byproductOutputs.Count; b++)
+            {
+                var output = byproductOutputs[b];
+                // Distribute around the centre y of the node, spaced 18px
+                // apart. Keeps multi-byproduct recipes (e.g. plastic +
+                // hydrogen) from stacking on top of each other.
+                var offset = (b - (byproductOutputs.Count - 1) / 2.0) * 18.0;
+                var y1 = y1Center + offset;
+
+                // Dangling end: extend 70px to the right, with a slight
+                // vertical drift so simultaneous byproducts fan out.
+                var x2 = x1 + 70;
+                var y2 = y1;
+
+                var strokeW = ScaleStroke(output.ItemsPerMinute, maxRate);
+                var path = BezierPath(x1, y1, x2, y2);
+                var label = $"{FormatRate(output.ItemsPerMinute)} {Trim(output.ItemName, 18)}";
+                var labelWidth = EstimateLabelWidth(label);
+
+                edges.Add(new EdgeShape(
+                    Path: path,
+                    Width: strokeW,
+                    Label: label,
+                    LabelX: (x1 + x2) / 2.0,
+                    LabelY: y2 - 12,
+                    LabelWidth: labelWidth,
+                    Tooltip: $"Byproduct: {FormatRate(output.ItemsPerMinute)} {output.ItemName}/min ({steps[producer].RecipeName})",
+                    IsByproduct: true,
+                    TargetX: x2,
+                    TargetY: y2));
+            }
+        }
+
+        // 6) Canvas size — fit the biggest column to the right and the
+        //    tallest column to the bottom, plus a margin for byproduct tails.
+        var width = Padding * 2 + (maxColumn + 1) * NodeWidth + maxColumn * ColumnGap + 90 /* byproduct tail */;
+        var tallestColumn = byColumn.Values.Max(l => l.Count);
+        var height = Padding * 2 + tallestColumn * NodeHeight + (tallestColumn - 1) * RowGap + 30;
+
+        return new GraphLayout(nodes, edges, width, height);
+    }
+
+    private static int ComputeColumn(
+        int idx,
+        IReadOnlyList<StepView> steps,
+        Dictionary<string, int> producerOfItem,
+        int?[] memo)
+    {
+        if (memo[idx] is int cached) return cached;
+        // Mark with a sentinel to break cycles (shouldn't happen in a valid
+        // plan, but guard anyway so we never recurse forever on bad input).
+        memo[idx] = 0;
+
+        var col = 0;
+        foreach (var input in steps[idx].Inputs)
+        {
+            if (!producerOfItem.TryGetValue(input.ItemId, out var producer)) continue;
+            if (producer == idx) continue;
+            var producerCol = ComputeColumn(producer, steps, producerOfItem, memo);
+            if (producerCol + 1 > col) col = producerCol + 1;
+        }
+        memo[idx] = col;
+        return col;
+    }
+
+    private static double ScaleStroke(decimal rate, decimal maxRate)
+    {
+        if (maxRate <= 0) return MinEdgeStroke;
+        var ratio = (double)(rate / maxRate);
+        // sqrt smooths the scale — a 1000/min line shouldn't be 100x the
+        // width of a 10/min line.
+        var scaled = Math.Sqrt(Math.Max(0.01, ratio));
+        return MinEdgeStroke + (MaxEdgeStroke - MinEdgeStroke) * scaled;
+    }
+
+    /// <summary>Cubic Bézier from (x1,y1) → (x2,y2) with control points
+    /// that pull each end horizontally, so producer→consumer flow reads
+    /// left-to-right even when nodes share a column.</summary>
+    private static string BezierPath(double x1, double y1, double x2, double y2)
+    {
+        var dx = Math.Max(40, (x2 - x1) * 0.5);
+        var cx1 = x1 + dx;
+        var cy1 = y1;
+        var cx2 = x2 - dx;
+        var cy2 = y2;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"M {x1:0.##} {y1:0.##} C {cx1:0.##} {cy1:0.##}, {cx2:0.##} {cy2:0.##}, {x2:0.##} {y2:0.##}");
+    }
+
+    /// <summary>Rough label-width heuristic — we don't have a font metrics
+    /// API on the server, so estimate at 6.5px per char + 12px padding.
+    /// Slight over-estimation is fine; SVG just leaves a bit more empty
+    /// background around shorter labels.</summary>
+    private static double EstimateLabelWidth(string label) =>
+        Math.Min(180, Math.Max(40, label.Length * 6.5 + 12));
+
+    private sealed record NodeBox(int Index, StepView Step, double X, double Y);
+
+    private sealed record EdgeShape(
+        string Path,
+        double Width,
+        string Label,
+        double LabelX,
+        double LabelY,
+        double LabelWidth,
+        string Tooltip,
+        bool IsByproduct,
+        double TargetX,
+        double TargetY);
+
+    private sealed record GraphLayout(
+        IReadOnlyList<NodeBox> Nodes,
+        IReadOnlyList<EdgeShape> Edges,
+        int Width,
+        int Height);
+}

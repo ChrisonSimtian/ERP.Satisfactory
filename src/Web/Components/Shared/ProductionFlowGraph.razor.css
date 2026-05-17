@@ -1,0 +1,117 @@
+.fx-graph-shell {
+    background-color: var(--fx-bg-panel);
+    border: 1px solid var(--fx-border);
+    border-radius: 4px;
+    padding: 0.75rem;
+}
+
+.fx-graph-empty {
+    background-color: var(--fx-bg-panel);
+    text-align: center;
+    color: var(--fx-text-muted);
+}
+
+.fx-graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    font-family: 'Bahnschrift', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    color: var(--fx-text-muted);
+}
+
+.fx-graph-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.fx-legend-swatch {
+    display: inline-block;
+    width: 16px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.fx-legend-swatch-node {
+    background-color: var(--fx-bg-elevated);
+    border: 1px solid var(--fx-orange);
+}
+
+.fx-legend-edge {
+    display: inline-block;
+    width: 24px;
+    height: 2px;
+    background-color: var(--fx-orange);
+    border-radius: 1px;
+}
+
+.fx-legend-edge-byproduct {
+    /* Dashed look using a thin background gradient — mirrors the SVG
+       stroke-dasharray="5 4" used in the graph itself. */
+    background-image: linear-gradient(to right,
+        var(--fx-text-muted) 0 5px,
+        transparent 5px 9px,
+        var(--fx-text-muted) 9px 14px,
+        transparent 14px 18px,
+        var(--fx-text-muted) 18px 24px);
+    background-color: transparent;
+}
+
+.fx-graph-scroll {
+    /* Horizontal scroll for wide plans (Tier 5+ chains can run 6-8 columns
+       wide). max-height caps so the page can still scroll vertically. */
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 75vh;
+    border: 1px solid var(--fx-border);
+    border-radius: 3px;
+    background-color: #0F0F14;
+}
+
+.fx-graph-svg {
+    display: block;
+}
+
+/* SVG <text> elements aren't styled by inline `class` automatically in the
+   sense of Blazor scoped CSS — these rules are picked up because the SVG is
+   inline in the component's render tree. */
+.fx-graph-node-title {
+    fill: var(--fx-text);
+    font-family: 'Bahnschrift', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.fx-graph-node-sub {
+    fill: var(--fx-text);
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 11px;
+}
+
+.fx-graph-node-meta {
+    fill: var(--fx-orange);
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 10px;
+}
+
+.fx-graph-edge-text {
+    fill: var(--fx-text);
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 10px;
+    pointer-events: none;
+}
+
+.fx-graph-node:hover rect {
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 4px rgba(250, 149, 73, 0.4));
+}
+
+.fx-graph-edge:hover path {
+    opacity: 1;
+}

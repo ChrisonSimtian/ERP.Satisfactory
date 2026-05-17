@@ -267,50 +267,63 @@ else
     }
     else
     {
-        <MudDataGrid T="StepView"
-                     Items="plan.Steps"
-                     Hover="true"
-                     Striped="true"
-                     Dense="true"
-                     SortMode="SortMode.Multiple"
-                     Class="fx-plan-grid">
-            <Columns>
-                <PropertyColumn Property="s => s.RecipeName" Title="Recipe" />
-                <PropertyColumn Property="s => s.BuildingName" Title="Building" />
-                <PropertyColumn Property="s => s.BuildingCount" Title="Buildings" Format="0.##" CellStyle="text-align: right;" HeaderStyle="text-align: right;" />
-                <PropertyColumn Property="s => s.PowerMw" Title="Power (MW)" Format="0.##" CellStyle="text-align: right;" HeaderStyle="text-align: right;" />
-                <TemplateColumn Title="Inputs / min" Sortable="false" Filterable="false">
-                    <CellTemplate>
-                        <div class="fx-amount-list">
-                            @foreach (var a in context.Item.Inputs)
-                            {
-                                <span class="fx-amount" title="@a.ItemName">
-                                    <img src="/assets/icons/items/@(a.ItemId).png"
-                                         onerror="this.style.visibility='hidden'"
-                                         alt="" />
-                                    <span class="fx-amount-text">@FormatRate(a.ItemsPerMinute) @a.ItemName</span>
-                                </span>
-                            }
-                        </div>
-                    </CellTemplate>
-                </TemplateColumn>
-                <TemplateColumn Title="Outputs / min" Sortable="false" Filterable="false">
-                    <CellTemplate>
-                        <div class="fx-amount-list">
-                            @foreach (var a in context.Item.Outputs)
-                            {
-                                <span class="fx-amount" title="@a.ItemName">
-                                    <img src="/assets/icons/items/@(a.ItemId).png"
-                                         onerror="this.style.visibility='hidden'"
-                                         alt="" />
-                                    <span class="fx-amount-text">@FormatRate(a.ItemsPerMinute) @a.ItemName</span>
-                                </span>
-                            }
-                        </div>
-                    </CellTemplate>
-                </TemplateColumn>
-            </Columns>
-        </MudDataGrid>
+        @* Issue #89: Two views over the same PlanResponse — the existing
+           table for ground-truth numbers, and the new SVG flow graph for
+           "see the whole chain at a glance" intuition past Tier 3-4.
+           Tabs share state (no recompute, no flicker on switch). *@
+        <MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="true"
+                 Class="fx-plan-tabs"
+                 KeepPanelsAlive="true">
+            <MudTabPanel Text="Table" Icon="@Icons.Material.Filled.TableChart">
+                <MudDataGrid T="StepView"
+                             Items="plan.Steps"
+                             Hover="true"
+                             Striped="true"
+                             Dense="true"
+                             SortMode="SortMode.Multiple"
+                             Class="fx-plan-grid">
+                    <Columns>
+                        <PropertyColumn Property="s => s.RecipeName" Title="Recipe" />
+                        <PropertyColumn Property="s => s.BuildingName" Title="Building" />
+                        <PropertyColumn Property="s => s.BuildingCount" Title="Buildings" Format="0.##" CellStyle="text-align: right;" HeaderStyle="text-align: right;" />
+                        <PropertyColumn Property="s => s.PowerMw" Title="Power (MW)" Format="0.##" CellStyle="text-align: right;" HeaderStyle="text-align: right;" />
+                        <TemplateColumn Title="Inputs / min" Sortable="false" Filterable="false">
+                            <CellTemplate>
+                                <div class="fx-amount-list">
+                                    @foreach (var a in context.Item.Inputs)
+                                    {
+                                        <span class="fx-amount" title="@a.ItemName">
+                                            <img src="/assets/icons/items/@(a.ItemId).png"
+                                                 onerror="this.style.visibility='hidden'"
+                                                 alt="" />
+                                            <span class="fx-amount-text">@FormatRate(a.ItemsPerMinute) @a.ItemName</span>
+                                        </span>
+                                    }
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Outputs / min" Sortable="false" Filterable="false">
+                            <CellTemplate>
+                                <div class="fx-amount-list">
+                                    @foreach (var a in context.Item.Outputs)
+                                    {
+                                        <span class="fx-amount" title="@a.ItemName">
+                                            <img src="/assets/icons/items/@(a.ItemId).png"
+                                                 onerror="this.style.visibility='hidden'"
+                                                 alt="" />
+                                            <span class="fx-amount-text">@FormatRate(a.ItemsPerMinute) @a.ItemName</span>
+                                        </span>
+                                    }
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            </MudTabPanel>
+            <MudTabPanel Text="Graph" Icon="@Icons.Material.Filled.AccountTree">
+                <ProductionFlowGraph Plan="plan" />
+            </MudTabPanel>
+        </MudTabs>
     }
 
     @if (plan.RawInputsConsumed.Count > 0)
