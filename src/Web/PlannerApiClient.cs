@@ -237,7 +237,8 @@ public sealed record PlanResponse(
     IReadOnlyList<AmountView> RawInputsConsumed,
     IReadOnlyList<MissingInputView> MissingInputs,
     IReadOnlyList<ExtractorAllocationView> ExtractorAllocations,
-    IReadOnlyList<string>? Warnings = null)
+    IReadOnlyList<string>? Warnings = null,
+    IReadOnlyList<FluidPipeRequirementView>? FluidPipeRequirements = null)
 {
     /// <summary>
     /// Plan-wide advisory strings (e.g. the variable-power-buildings notice
@@ -247,6 +248,15 @@ public sealed record PlanResponse(
     /// null check.
     /// </summary>
     public IReadOnlyList<string> WarningsOrEmpty => Warnings ?? Array.Empty<string>();
+
+    /// <summary>
+    /// Non-null shorthand for the optional <see cref="FluidPipeRequirements"/>
+    /// field — older API responses (and any future server that omits the
+    /// section) read as the empty list, so Razor can iterate without null
+    /// checks.
+    /// </summary>
+    public IReadOnlyList<FluidPipeRequirementView> Pipes =>
+        FluidPipeRequirements ?? [];
 }
 
 /// <summary>Per-node extraction breakdown (#92). Empty when the request
@@ -259,6 +269,14 @@ public sealed record ExtractorAllocationView(
     string Tier,
     decimal MinerFraction,
     decimal OutputPerMinute);
+
+/// <summary>Per-fluid pipe-throughput summary surfaced in the planner UI (#90).
+/// <c>RecommendedTier</c> is the enum name ("Mk1" / "Mk2" / "OverMk2").</summary>
+public sealed record FluidPipeRequirementView(
+    string ItemId,
+    string ItemName,
+    decimal MaxRatePerMinute,
+    string RecommendedTier);
 
 /// <summary>Per-item diagnostic for an unsatisfied target (#8).
 /// <c>ItemId</c> + <c>ItemName</c> + <c>ItemsPerMinute</c> match the previous

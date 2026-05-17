@@ -244,4 +244,92 @@ public class OrToolsRecipePlannerTests
         Assert.InRange(step.BuildingCount, 1m - Tol, 1m + Tol);
         Assert.Empty(plan.MissingInputs);
     }
+
+    // --------------------- Fluid pipe requirements (#90) ---------------------
+    //
+    // After solving, both planners populate ProductionPlan.FluidPipes with the
+    // max single-edge rate per fluid + a recommended pipe Mk. The three cases
+    // below are the issue's acceptance edges: exactly at the Mk1 cap (300/min),
+    // over Mk1 (480/min → Mk2), and well under (50/min → Mk1).
+
+    [Fact]
+    public void Fluid_Pipes_Recommend_Mk1_Exactly_At_Limit()
+    {
+        // Build a refinery recipe whose Heavy Oil Residue output is exactly
+        // 300/min — the Mk1 cap. The helper must still pick Mk1 (not bump up).
+        // 5 residue per 1s = 300/min. Crude oil input is well under the cap.
+        var residueAtCap = new Recipe(
+            new RecipeId("Recipe_ResidueAtMk1_C"),
+            "Residue (Mk1 boundary)",
+            RefineryId,
+            Inputs: [new ItemAmount(CrudeOil, 1)],
+            Outputs: [new ItemAmount(HeavyOilResidue, 5)],
+            Duration: TimeSpan.FromSeconds(1));
+
+        var catalog = new FakeCatalog(
+            buildings: [new Building(RefineryId, "Refinery", BasePowerMw: 30)],
+            recipes: [residueAtCap]);
+
+        var planner = new OrToolsRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(HeavyOilResidue, 300)],
+            Available: [new ResourceAvailability(CrudeOil, 999)]));
+
+        var residue = plan.Pipes.Single(p => p.Item == HeavyOilResidue);
+        Assert.InRange(residue.MaxRatePerMinute, 300m - Tol, 300m + Tol);
+        Assert.Equal(PipeTier.Mk1, residue.RecommendedTier);
+    }
+
+    [Fact]
+    public void Fluid_Pipes_Recommend_Mk2_When_Over_Mk1()
+    {
+        // 480/min Heavy Oil Residue — the issue's acceptance example. Needs Mk2.
+        // 8 residue per 1s = 480/min.
+        var residueOverMk1 = new Recipe(
+            new RecipeId("Recipe_ResidueOverMk1_C"),
+            "Residue (over Mk1)",
+            RefineryId,
+            Inputs: [new ItemAmount(CrudeOil, 1)],
+            Outputs: [new ItemAmount(HeavyOilResidue, 8)],
+            Duration: TimeSpan.FromSeconds(1));
+
+        var catalog = new FakeCatalog(
+            buildings: [new Building(RefineryId, "Refinery", BasePowerMw: 30)],
+            recipes: [residueOverMk1]);
+
+        var planner = new OrToolsRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(HeavyOilResidue, 480)],
+            Available: [new ResourceAvailability(CrudeOil, 999)]));
+
+        var residue = plan.Pipes.Single(p => p.Item == HeavyOilResidue);
+        Assert.InRange(residue.MaxRatePerMinute, 480m - Tol, 480m + Tol);
+        Assert.Equal(PipeTier.Mk2, residue.RecommendedTier);
+    }
+
+    [Fact]
+    public void Fluid_Pipes_Recommend_Mk1_When_Well_Under_Limit()
+    {
+        // 50/min water — comfortably under 300 — should pick Mk1 with no fuss.
+        var smallWaterRecipe = new Recipe(
+            new RecipeId("Recipe_WaterTrickle_C"),
+            "Water (trickle)",
+            RefineryId,
+            Inputs: [],
+            Outputs: [new ItemAmount(Water, 50)],
+            Duration: TimeSpan.FromSeconds(60));
+
+        var catalog = new FakeCatalog(
+            buildings: [new Building(RefineryId, "Refinery", BasePowerMw: 30)],
+            recipes: [smallWaterRecipe]);
+
+        var planner = new OrToolsRecipePlanner(catalog);
+        var plan = planner.Plan(new PlanProductionQuery(
+            Targets: [new ProductionTarget(Water, 50)],
+            Available: []));
+
+        var water = plan.Pipes.Single(p => p.Item == Water);
+        Assert.InRange(water.MaxRatePerMinute, 50m - Tol, 50m + Tol);
+        Assert.Equal(PipeTier.Mk1, water.RecommendedTier);
+    }
 }

@@ -268,7 +268,8 @@ public sealed class OrToolsRecipePlanner : IRecipePlanner
             RawInputsConsumed: rawConsumed,
             MissingInputs: InfeasibilityDiagnostics.Build(missingByItem, _catalog, steps),
             ExtractorAllocations: allocations,
-            Warnings: PowerVarianceWarning.Build(steps));
+            Warnings: PowerVarianceWarning.Build(steps),
+            FluidPipes: FluidPipeRequirements.Build(steps, rawConsumed));
     }
 
     private static readonly IReadOnlyList<MinerTier> AllMinerTiers =

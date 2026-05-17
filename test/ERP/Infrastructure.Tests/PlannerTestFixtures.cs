@@ -24,6 +24,9 @@ internal static class PlannerTestFixtures
     public static readonly ItemId CopperIngot = new("Desc_CopperIngot_C");
     public static readonly ItemId HeavyOilResidue = new("Desc_HeavyOilResidue_C");
     public static readonly ItemId Plastic = new("Desc_Plastic_C");
+    public static readonly ItemId Water = new("Desc_Water_C");
+    public static readonly ItemId CrudeOil = new("Desc_LiquidOil_C");
+    public static readonly ItemId LiquidFuel = new("Desc_LiquidFuel_C");
 
     public static readonly Recipe IronIngotRecipe = new(
         new RecipeId("Recipe_IngotIron_C"),

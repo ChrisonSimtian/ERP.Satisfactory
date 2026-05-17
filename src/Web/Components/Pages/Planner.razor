@@ -325,6 +325,53 @@ else
         </MudDataGrid>
     }
 
+    @if (plan.Pipes.Count > 0)
+    {
+        <MudText Typo="Typo.h5" Class="mt-4 mb-1">Fluid pipes</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Default" Class="d-block mb-2">
+            Recommended pipe Mk per fluid based on the max single-edge rate in the plan.
+            Mk1 carries 300 m³/min, Mk2 carries 600 m³/min. Headlift (vertical transport)
+            isn't modelled yet.
+        </MudText>
+        <MudSimpleTable Dense="true" Hover="true" Class="fx-fluid-pipes">
+            <thead>
+                <tr>
+                    <th>Fluid</th>
+                    <th style="text-align: right;">Max rate (m³/min)</th>
+                    <th>Recommended pipe</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pipe in plan.Pipes)
+                {
+                    <tr>
+                        <td>
+                            <span class="fx-amount" title="@pipe.ItemName">
+                                <img src="/assets/icons/items/@(pipe.ItemId).png"
+                                     onerror="this.style.visibility='hidden'"
+                                     alt="" />
+                                <span class="fx-amount-text">@pipe.ItemName</span>
+                            </span>
+                        </td>
+                        <td style="text-align: right;">@FormatRate(pipe.MaxRatePerMinute)</td>
+                        <td>
+                            @{
+                                var (label, color) = pipe.RecommendedTier switch
+                                {
+                                    "Mk1" => ("Mk1 pipe", Color.Success),
+                                    "Mk2" => ("Mk2 pipe", Color.Info),
+                                    "OverMk2" => ("Over Mk2 — split line", Color.Warning),
+                                    _ => (pipe.RecommendedTier, Color.Default),
+                                };
+                            }
+                            <MudChip T="string" Color="@color" Variant="Variant.Outlined" Size="Size.Small">@label</MudChip>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+
     @if (plan.RawInputsConsumed.Count > 0)
     {
         <MudText Typo="Typo.h5" Class="mt-4 mb-2">Raw inputs consumed (from sources)</MudText>

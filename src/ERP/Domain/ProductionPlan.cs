@@ -7,6 +7,7 @@ namespace ERP.Domain;
 /// flags any unsatisfied demand.
 /// <para>
 /// <see cref="ExtractorAllocations"/> reports per-node miner placement (#92).
+/// <see cref="FluidPipes"/> reports per-fluid pipe-Mk recommendations (#90).
 /// <see cref="Warnings"/> is a list of advisory, plan-wide caveats — strings
 /// that the UI / API surface as informational text alongside the plan. Today
 /// the only producer is the variable-power-buildings notice (#91 v1): when a
@@ -23,7 +24,8 @@ public sealed record ProductionPlan(
     IReadOnlyList<ItemAmount> RawInputsConsumed,
     IReadOnlyList<InfeasibleItem> MissingInputs,
     IReadOnlyList<ExtractorAllocation>? ExtractorAllocations = null,
-    IReadOnlyList<string>? Warnings = null)
+    IReadOnlyList<string>? Warnings = null,
+    IReadOnlyList<FluidPipeRequirement>? FluidPipes = null)
 {
     public IReadOnlyList<string> WarningsOrEmpty => Warnings ?? Array.Empty<string>();
 
@@ -35,4 +37,12 @@ public sealed record ProductionPlan(
     /// </summary>
     public IReadOnlyList<ExtractorAllocation> Allocations =>
         ExtractorAllocations ?? Array.Empty<ExtractorAllocation>();
+
+    /// <summary>
+    /// Non-null shorthand for the optional <see cref="FluidPipes"/> field.
+    /// Plans with no fluids in their inputs/outputs leave it as the empty list
+    /// — callers that want to iterate can use this without null checks.
+    /// </summary>
+    public IReadOnlyList<FluidPipeRequirement> Pipes =>
+        FluidPipes ?? Array.Empty<FluidPipeRequirement>();
 }

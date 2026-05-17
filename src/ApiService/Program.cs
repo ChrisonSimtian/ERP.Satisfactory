@@ -968,6 +968,14 @@ public sealed record MissingInputDto(
 
 public sealed record RecipeRefDto(string Id, string Name);
 
+/// <summary>Per-fluid pipe-throughput summary (#90). <c>RecommendedTier</c>
+/// is the enum name ("Mk1" / "Mk2" / "OverMk2") for clean JSON.</summary>
+public sealed record FluidPipeRequirementDto(
+    string ItemId,
+    string ItemName,
+    decimal MaxRatePerMinute,
+    string RecommendedTier);
+
 public sealed record PlanDto(
     bool IsFeasible,
     IReadOnlyList<StepDto> Steps,
@@ -975,7 +983,8 @@ public sealed record PlanDto(
     IReadOnlyList<AmountDto> RawInputsConsumed,
     IReadOnlyList<MissingInputDto> MissingInputs,
     IReadOnlyList<ExtractorAllocationDto> ExtractorAllocations,
-    IReadOnlyList<string> Warnings)
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<FluidPipeRequirementDto> FluidPipeRequirements)
 {
     public static PlanDto From(ProductionPlan plan, ICatalogProvider catalog)
     {
@@ -1004,6 +1013,13 @@ public sealed record PlanDto(
                 MinerFraction: Math.Round(a.MinerFraction, 4),
                 OutputPerMinute: Math.Round(a.OutputPerMinute, 4));
 
+        FluidPipeRequirementDto ToFluidPipe(FluidPipeRequirement f) =>
+            new(
+                ItemId: f.Item.Value,
+                ItemName: catalog.FindItem(f.Item)?.Name ?? f.Item.Value,
+                MaxRatePerMinute: Math.Round(f.MaxRatePerMinute, 4),
+                RecommendedTier: f.RecommendedTier.ToString());
+
         var steps = plan.Steps.Select(s => new StepDto(
             s.Recipe.Id.Value,
             s.Recipe.Name,
@@ -1021,6 +1037,7 @@ public sealed record PlanDto(
             RawInputsConsumed: plan.RawInputsConsumed.Select(ToAmount).ToList(),
             MissingInputs: plan.MissingInputs.Select(ToMissing).ToList(),
             ExtractorAllocations: plan.Allocations.Select(ToAllocation).ToList(),
-            Warnings: plan.WarningsOrEmpty);
+            Warnings: plan.WarningsOrEmpty,
+            FluidPipeRequirements: plan.Pipes.Select(ToFluidPipe).ToList());
     }
 }
