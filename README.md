@@ -21,21 +21,37 @@ already placed in your world.
 > [Save File Parsing](https://github.com/ChrisonSimtian/ERP.Satisfactory/wiki/Save-File-Parsing),
 > or [LP Planner](https://github.com/ChrisonSimtian/ERP.Satisfactory/wiki/LP-Planner).
 
-## What's new in v0.4 — *Pipe polylines milestone*
+## What's new in v1.0 — *First stable release*
 
-- **Pipe polylines** — `mSplineData` is now deep-parsed end-to-end; pipes render
-  as LineStrings on the map alongside conveyor belts (#138).
+v1.0 marks the planner as feature-complete for single-player factory planning:
+declare what you have and what you need, optionally hand it your live `.sav`,
+and the LP picks recipes, miners, generators, and pipe tiers for you.
+
+**Planner**
+- **LP-driven recipe selection** — OR-Tools picks recipes, allocates miners to
+  resource nodes, sizes fluid pipes, and emits shadow prices + reduced costs
+  so you can see *why* a plan is shaped the way it is (#129).
 - **Generator-aware planning** — pass a `PowerTargetMw` and the LP picks
   generator kinds + fuels freely; missing fuel surfaces as a `MissingInput`
-  rather than infeasibility (#137).
-- **LP sensitivity** — shadow prices on supply constraints + reduced costs on
-  inactive recipes, surfaced in the planner UI (#129).
+  rather than infeasibility (#91 / #137).
+- **Variance warnings** for plans that touch miners or fluid extractors —
+  base-power × count under-reports peak draw by ~50%, so the plan flags it (#91).
 - **Fluid throughput constraints** — per-item pipe requirements with
   recommended tier on the resulting plan (#90).
-- **Variance warnings** for plans bottlenecked by miner/extractor allocation (#91).
-- **`/dashboard` page** — glance-able snapshot, auto-refresh, in-game-browser friendly (#131).
+
+**Live factory state**
+- **Save-file ingestion end-to-end** — items, buildings, recipes, conveyor
+  polylines, and pipe polylines (`mSplineData` deep-parse) all land on the map
+  as GeoJSON (#12 / #138).
 - **Auto-ingest** — TickerQ background scheduler picks up newer `.sav` files
   without manual reload (#115).
+- **`/dashboard` page** — glance-able snapshot, auto-refresh, in-game-browser friendly (#131).
+
+**Foundations** — Onion + CQRS + Wolverine on .NET 10 / Blazor Server / Aspire;
+MudBlazor 9 UI; PostgreSQL via Npgsql + EF Core with migration-drift CI guard.
+
+Map *editing* (drag-to-plan, belt reroute, plan-vs-actual diff) is the v2 epic
+tracked under [milestone 14](https://github.com/ChrisonSimtian/ERP.Satisfactory/milestones).
 
 See the full backlog at [milestones](https://github.com/ChrisonSimtian/ERP.Satisfactory/milestones)
 or the wiki [Roadmap](https://github.com/ChrisonSimtian/ERP.Satisfactory/wiki/Roadmap).
